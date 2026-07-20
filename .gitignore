@@ -1,0 +1,73 @@
+# -*- mode: gitignore -*-
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# venv / env
+.venv/
+venv/
+env/
+ENV/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs（项目内日志不入库）
+*.log
+results/*.log
+logs/
+/tmp/
+
+# 验证产物（视频体积大，只保留 results.json）
+results/**/*.mp4
+results/*.mp4
+*.mp4
+
+# 大模型权重 / checkpoints
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+openvla_checkpoints/
+X-VLA-libero/
+
+# 外部依赖源码（非本仓库内容，只匹配根目录，不误伤 models/ 下的同名子目录）
+/X-VLA/
+/openvla/
+/libero/
+
+# 渲染库（OSMesa，由 setup_env.sh 重建）
+render_libs/
+
+# CANN / NPU 临时
+*.npu_cache
+ascend_*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AtomCode / 其他工具
+.atomcode/
+.atomcode.user.md
+CLAUDE.md
+AGENTS.md
