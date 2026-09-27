@@ -1,0 +1,14 @@
+{
+  "model": "pi0.5_lerobot_pi05-libero",
+  "suite": "libero_spatial",
+  "task_id": 0,
+  "task_language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+  "act_type": "rel",
+  "init_seed": 42,
+  "num_episodes": 1,
+  "success_rate": 0.0,
+  "successes": [
+    0.0
+  ],
+  "total_time_s": 129.1452558040619
+}

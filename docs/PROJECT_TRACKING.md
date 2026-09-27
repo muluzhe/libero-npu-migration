@@ -1,7 +1,9 @@
 # LIBERO 仿真验证 NPU 迁移 — 项目追踪文档
 
+> **最新纠正（2026-09-27）**：本文保留原文历史过程；当前口径以文末“阶段 20：文档证据审计与最新纠正”为准。X-VLA 原始四套件统计为 90% / 99% / 100% / 94%，平均 95.75%；OpenVLA 四 suite JSON 为 77/79/75/57；PI0.5 旧 spatial run 为 96/100，当前新 spatial run 正在 NPU0 fp32 上进行。视频按实际运行产物记录，X/OpenVLA 视频暂不展开。
+>
 > 本文档实时记录项目进展、阶段总结、问题与解决方法。后续所有项目进展都记录在此。
-> 最后更新：2026-07-12 19:23
+> 最后更新：2026-09-27
 
 ---
 
@@ -123,7 +125,7 @@ export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1          # 离线模式，跳过�
 - ✅ 根因：OSMesa 软件渲染 vs GPU 硬件渲染的固有图像差异（SSIM=0.42）
 - ✅ 5 个简单任务 NPU 与 GPU 完全一致（100%），证明 NPU 推理迁移成功
 - ✅ 5 个精细抓取任务退化（30-80%），因 OSMesa 图对模型是 OOD 输入
-- ✅ 详见 `docs/RENDER_DIFF_DIAGNOSIS.md`
+- ✅ 详见 `docs/xvla/RENDER_DIFF_DIAGNOSIS.md`
 
 ### 阶段 5：推理随机性诊断与 seed 修复（已完成，2026-07-12）
 
@@ -292,7 +294,7 @@ lerobot 是 Hugging Face 的开源机器人学习库（`github.com/huggingface/l
 **进行中**：
 - ✅ clone openvla 仓库 + 装 draccus
 - ✅ NPU 加载适配（4处改动，语法验证OK）：`openvla_utils.py` 的 DEVICE加npu:0 / attn改eager / dtype改fp32 / inputs改fp32
-- ✅ 写验证脚本 `scripts/run_openvla_libero.sh`（语法OK）
+- ✅ 写验证脚本 `scripts/openvla/run_openvla_libero.sh`（语法OK）
 - 🔄 下载 libero_spatial checkpoint：14/16文件齐，**卡在 model-00002-of-00004.safetensors（4.7GB分片，下载速度仅3KB/s，网络瓶颈）**
 - ⏳ 跑 libero_spatial 验证（10ep, seed42）— 等model-00002下完
 - ⏳ 汇总结果 + 与官方基准对比
@@ -379,7 +381,7 @@ lerobot 是 Hugging Face 的开源机器人学习库（`github.com/huggingface/l
 - ✅ 核心结果移入项目内统一管理：`results/xvla_npu_seed42_10ep/`（37M，400视频，5results）
 - ✅ 项目目录整理：清理 __pycache__，统一命名规则
 - ✅ 服务器 seed 改为环境变量 `XVLA_SEED`（默认42），支持多seed验证
-- ✅ 写方案B脚本 `scripts/run_planB_multi_seed.sh`（5 seed × 10ep × 4 suite，幂等可重复）
+- ✅ 写方案B脚本 `scripts/xvla/run_planB_multi_seed.sh`（5 seed × 10ep × 4 suite，幂等可重复）
 - 🔄 方案B后台运行中（seed=42跳过，seed=123/456/789/2024 各跑一轮，约16-20h）
 - 输出：`results/xvla_npu_seed{S}_10ep/`，完成后脚本自动聚合平均±方差对比论文基准
 
@@ -412,7 +414,7 @@ tail -f $PROJECT_ROOT/results/planB.log
 ls $PROJECT_ROOT/results/xvla_npu_seed*_10ep/results.json 2>/dev/null
 
 # 聚合结果（方案B脚本末尾自动打印，也可手动跑）
-bash $PROJECT_ROOT/scripts/run_planB_multi_seed.sh
+bash $PROJECT_ROOT/scripts/xvla/run_planB_multi_seed.sh
 ```
 
 ## 九、关键文件索引
@@ -424,9 +426,9 @@ bash $PROJECT_ROOT/scripts/run_planB_multi_seed.sh
 | `$PROJECT_ROOT/scripts/setup_env.sh` | 环境搭建 |
 | `$PROJECT_ROOT/scripts/run_eval.sh` | 仿真验证一键运行 |
 | `$PROJECT_ROOT/models/*/server.py` | 6 个 VLA 模型 NPU 服务器 |
-| `$PROJECT_ROOT/docs/VIDEO_ORIENTATION.md` | 视频倒置根因与修复 |
-| `$PROJECT_ROOT/docs/RENDER_DIFF_DIAGNOSIS.md` | 渲染差异诊断报告 |
-| `$PROJECT_ROOT/docs/EXTENSIBILITY.md` | 扩展其他 VLA 模型指南 |
+| `$PROJECT_ROOT/docs/LIBERO_NPU_MIGRATION.md` §6 | 视频倒置根因与修复 |
+| `$PROJECT_ROOT/docs/xvla/RENDER_DIFF_DIAGNOSIS.md` | 渲染差异诊断报告 |
+| `$PROJECT_ROOT/docs/ADAPTING_NEW_MODEL.md` | 扩展其他 VLA 模型指南 |
 | `$PROJECT_ROOT/docs/PROJECT_TRACKING.md` | 本文档（项目追踪） |
 | `$X_VLA_ROOT/models/modeling_xvla.py` | X-VLA 模型（含 seed 修复） |
 | `$X_VLA_ROOT/evaluation/libero/libero_client.py` | LIBERO 仿真客户端（官方原样） |
@@ -657,7 +659,7 @@ for s in ['libero_spatial','libero_goal','libero_object','libero_10']:
 
 ### 阶段14：完整 spatial suite 验证（2026-07-17 20:49）
 
-**验证脚本**: `scripts/eval_spatial_full.py`（10 task × 5 ep = 50 rollouts, act_type=rel, horizon=220）
+**验证脚本**: `scripts/openvla/eval_openvla_suite.py`（10 task × 5 ep = 50 rollouts, act_type=rel, horizon=220）
 
 **结果**: Overall SR = **76.0% (38/50)**，总耗时 148.6 min，对比官方基准 84.7% ± 0.9%。
 
@@ -682,7 +684,7 @@ for s in ['libero_spatial','libero_goal','libero_object','libero_10']:
 
 ### 阶段15：性能优化（2026-07-17 21:02）
 
-**优化脚本**: `scripts/eval_spatial_task0_v3_optimized.py`（优化版 server_v2.py）
+**优化脚本**: `scripts/openvla/eval_spatial_task0_v3_optimized.py`（优化版 server_v2.py）
 
 **优化点**:
 1. **全局预计算 crop 参数**: `_CROP_H`, `_CROP_Y0` 等常量模块级计算，避免每步 `np.sqrt` + `int`
@@ -710,7 +712,7 @@ for s in ['libero_spatial','libero_goal','libero_object','libero_10']:
 **文档整合**:
 - 创建 `docs/LIBERO_NPU_MIGRATION.md`（统一说明文档，265 行）
 - 创建 `docs/LIBERO_NPU_RECORD.md`（项目记录文档，201 行）
-- 更新 `docs/OPENVLA_HANDOVER.md` 状态为"闭环验证成功 100%"
+- 更新 `docs/openvla/OPENVLA_HANDOVER.md` 状态为"闭环验证成功 100%"
 
 **最终文档清单**:
 
@@ -743,3 +745,162 @@ for s in ['libero_spatial','libero_goal','libero_object','libero_10']:
 **项目周期**: 2026-07-02 ~ 2026-07-17（16 天）
 
 **项目状态**: ✅ **完成**
+
+---
+
+## PI0.5 验证阶段（2026-07-20 启动）
+
+> 在已完成的 X-VLA / OpenVLA NPU 迁移基础上，扩展验证 pi0.5 模型。独立追踪文档 `docs/pi05/PI05_TRACKING.md`，独立问题记录 `docs/pi05/PI05_RECORD.md`。硬约束：不影响 X-VLA / OpenVLA 已验证结果，不改动其他模型文件，独立 conda env + 独立输出目录。
+
+### PI0.5 阶段 1：调研官基准与 checkpoint（2026-07-20 完成）
+
+- 官方基准：openpi pi0.5@30k finetuned **96.85%**（spatial 98.8 / object 98.2 / goal 98.0 / long 92.4）；lerobot 团队复现 **97.5%**
+- checkpoint：`lerobot/pi05-libero`（4B safetensors，含完整 config/processor/norm stats）
+- 推理 API：`PI05Policy.from_pretrained + predict_action_chunk`（输出 `[B, 50, 7]` action chunk）
+- 关键决策：不用 cann-recipes 的 base 模型（无 LIBERO 微调），改用 `lerobot/pi05-libero` 直接对比官方基准
+
+### PI0.5 阶段 2：搭建独立 conda env（2026-07-20 完成）
+
+- 新建 env `lerobot-pi05`（python 3.10）：torch 2.7.1 + torch_npu 2.7.1.post2 + numpy 1.26.4 + transformers 4.53.3（`fix/lerobot_openpi` 分支）+ lerobot fc296548 editable + libero/robosuite/mujoco + decorator + json_numpy + sentencepiece/gemma
+- 复用 NPU 基础设施：OSMesa patch（`scripts/apply_patches.py` 应用到 lerobot-pi05 env 的 robosuite）+ 渲染库 `~/render_libs/` + LIBERO assets `~/.cache/libero/assets`
+- 隔离保证：独立 env，不碰 `PyTorch-2.7.1` env 的任何包
+
+### PI0.5 阶段 3：开发 NPU 推理 server（2026-07-20 完成）
+
+- 核心产出 `models/pi0/server_v2.py`（300 行）：与 OpenVLA server_v2 同源对接 X-VLA client（HTTP `/act`）
+- 架构：`PI05Policy.predict_action_chunk` → postprocess 反归一化 → `[T, 10]` = `[pos3, rot6d, grip1]`（aa3→rot6d 同源转换 + grip 反转匹配 client 离散化语义）
+- act_type=rel：pi0.5 LIBERO checkpoint 训练用 `control_mode="relative"`（delta action），与 X-VLA client `act_type=rel` 路径语义一致
+- 6 个关键修复（详见 PI05_RECORD）：config.json 去无效字段、paligemma 离线加载、compile_model 关闭、NPU monkey-patch（bf16 noise → fp32 采样）、bf16 tensor 转 numpy、chunk 语义错配（select_action → predict_action_chunk）
+
+### PI0.5 阶段 4：单任务闭环验证（2026-07-20 完成）
+
+- 核心产出 `scripts/pi05/eval_pi05_task0.py`
+- 实测 task0 × 1ep：闭环跑通（150 步无崩，server 收 16 次 POST /act 200 OK），成功率 0%
+- 4 个关键修复（详见 PI05_RECORD）：环境变量必须在 import 前 export、LD_LIBRARY_PATH 含 ~/render_libs、`_init_env` 返回 tuple、每步注入 `obs['robo_ori']/obs['robo_pos']`
+
+### PI0.5 阶段 5：完整 spatial suite 验证（2026-07-20 跑中）
+
+- 核心产出 `scripts/pi05/eval_pi05_spatial.py`（10 task × 10 ep = 100 episodes）+ `scripts/pi05/run_pi05_spatial.sh`（一键启动）
+- 进度实时写 `results/pi05_spatial/progress.log`，中间结果每 task 完即时存 `spatial_results_partial.json`
+- 对比基准：openpi 官方 spatial 98.8% / lerobot 复现 97.0%
+- 单 episode ~2.7 分钟，100 episodes 预计 ~4.5 小时
+- 初步观察：task0 前 8 episode 跑满 220 步全 0%，诊断确认不是技术 bug（pi0.5 base+30k 微调模型在 LIBERO task0 上的真实表现，robosuite OSC controller 内部已对 delta action 截断到 ±0.05/步，机器人能动且方向合理）
+
+### PI0.5 阶段 6：同步项目说明文档（2026-07-20 完成）
+
+- 更新 README.md：目录结构加 `server_v2.py` / `PI05_TRACKING.md` / `PI05_RECORD.md` / `pi05_spatial/`；支持表 PI0.5 行改为"推理+闭环跑通，完整 spatial suite 跑中"
+- 更新 PROJECT_TRACKING.md：追加"PI0.5 阶段"6 个子阶段记录
+- 更新 PI05_RECORD.md：6 类问题汇总 + 17 个具体问题解决方法表
+- 更新 PI05_TRACKING.md：阶段 1-6 完整记录 + 隔离保证表 + 关键文件索引
+
+---
+
+## 阶段 17：项目整理 + OpenVLA 全量验证 + PI0.5 基准重生成（2026-09-26）
+
+> 用户要求：扫描项目找完善点 → 复跑 OpenVLA 全量验证对齐论文 → 推进 PI0.5 修复 → 文档结构整合（每模型 ≤2 文档 + 总过程记录 + 总结文档）。
+
+### 17.1 全面扫描（子代理完成 14 文档 + 23 脚本 + 8 server）
+
+**P0 级发现**：
+- **P0-1 脚本损伤**：07-17 隐私清理把 `${X_VLA_ROOT:?...}` bash 语法机械替换进 5 个 .py（eval_spatial_full / eval_spatial_task0_v2/v3 / diag_compare_action / diag_stage1_official / apply_patches:108），此后这些脚本从未被回归验证，**不可运行**——这是 OpenVLA 复跑前必须修的
+- **P0-2 凭证泄露**：GPU 服务器 IP/用户名/密码明文写在 PI05_RECORD P4.26、PI05_TRACKING §六.17、ATOMCODE_HANDOVER、gpu_http_proxy.sh（07-18 隐私扫描后新增文件，"零残留"结论失效）
+- **P0-4 run_eval.sh 入口错误**：对 openvla/pi0 调 v1/骨架 server（已知错误实现）
+- **P0-5 schema 漂移**：gpu_infer_compare.py / i2_real_obs_infer.py 仍用旧 state schema [pos3, quat4, grip1]，与 server_v2.py P4.7/P4.8 修复后的 [pos3, axis_angle3, gripper_qpos2] 不一致——**若照跑 GPU 对比会污染 D/G 定论**
+- P1×10（异常保护缺失/端口等待不退出/env 设置 4 种并存/success 判定不一致等）、P2×5（死代码/__pycache__/kernel_meta 残留/8 类重复代码）
+
+### 17.2 P0 修复（全部完成）
+
+1. ✅ P0-1：5 个 .py 全部改 `os.environ.get()` + 绝对路径默认值；eval_spatial_full.py 重构泛化为 **eval_openvla_suite.py**（argparse 支持 4 suite + 官方 per-suite 步数上限 220/280/300/520 + 官方基准表），实测跑通
+2. ✅ P0-2：凭证全量脱敏（`<GPU_IP>` / "见团队内部记录"），grep 验证零残留；gpu_http_proxy.sh 参数化（GPU_PUBLIC_IP 自动探测）
+3. ✅ P0-4：run_eval.sh 重写——openvla/pi0 显式拒绝并指向专用脚本；kill 改按端口；server 未就绪/进程退出即报错退出；act_type 参数化
+4. ✅ P0-5：gpu_infer_compare.py 重写——state_8 对齐 server P4.7/P4.8 schema（quat wxyz→axis_angle 同源链 + gripper q50 中位数），支持 npu/cuda/cpu 双端（NPU 与 GPU 用**同一脚本同一 obs** 严格对比）；i2_real_obs_infer.py 标注 SUPERSEDED
+5. ✅ P2-1：models/openvla/server.py（v1 错误实现）、models/pi0/server.py（骨架）、run_openvla_libero.sh（路径B弃用）、i2_real_obs_infer.py 全部加 DEPRECATED/SUPERSEDED 头部标注指向正确实现
+
+### 17.3 OpenVLA 4 suite 全量验证（对齐论文，跑中）
+
+- **checkpoint**：官方 HF 不可达（代理拒外网 IP）→ 找到 modelscope 镜像 `superpeach/openvla-7b-fin*`，**4 分片大小与官方逐字节一致**（4925122448/4947392496/4947417456/262668432），unnorm key 各 suite 正确；3 个新 ckpt（object/goal/10）共 45GB 下载完成并校验
+- **编排**：新写 `scripts/openvla/run_openvla_full_validation.sh`（自动起停 server + 分片完整性校验 + 渲染环境变量 export）；双卡两流：流A（卡0:8011）spatial→goal，流B（卡1:8021）object→libero_10
+- **协议**：官方步数上限 + seed42 + 10ep/task（论文 50 trial/task 取 10，与 X-VLA 约定一致）
+- **初步结果**：spatial task0 **10/10 = 100%**（与首次 76.0% 的 task0 表现一致）；双流均已跑通（A 流 spatial 进行中，B 流 object 进行中）
+- **坑 1**：编排脚本首版 `${SUITE#libero-}` 对下划线 suite 不生效（libero_spatial→libero-libero_spatial 路径错）秒退，改 `${SUITE/_/-}` 后正常
+- **坑 2（modelscope 镜像两处远程引用）**：镜像 checkpoint 缺官方的 3 个 trust_remote_code 文件（configuration/modeling/processing_prismatic.py）→ 从官方 spatial 拷贝；且镜像 config.json 与 preprocessor_config.json 的 auto_map 指向远程仓库 `openvla/openvla-7b--*`（官方指本地文件）→ HF 被代理阻断即 OSError，改写为本地引用后 server 正常加载
+- **坑 3（沙箱间歇拒 /dev/davinci_manager）**：11:06 后 IDE 沙箱把 Ascend 设备管理节点加入拒绝列表，新 NPU 进程全部 `npu.is_available()=False`（老进程持已开 fd 不受影响）→ 需审批的沙箱外运行模式 + 直接子进程启动（setsid 分离会落回沙箱），B 流与 PI0.5 基准均用此方式启动成功
+
+### 17.4 PI0.5 NPU 基准重生成（P4.28，跑中）
+
+- **v13 成功**：修复后的 gpu_infer_compare.py（两阶段 + 采样 patch + 动态任务语言）在卡1 fp32 跑通，基准 JSON 已存 `results/pi05_npu_baseline_2026-09-26.json`
+- **★ 关键定论：PI0.5 #18 定论被独立路径确证**——正确构造的单发推理（正确 schema + 正确 processor + 正确任务语言 + 闭环图像分布）下，官方便样 ckpt 对 task0 输出 **`[-0.736, +0.016, -0.891]`（固定负 z）**，与历史闭环基准同方向——闭环 0% 是模型真实输出而非链路 artifact（详见 PI05_TRACKING §六.19 / PI05_RECORD P4.28）
+  - **⚠️ 2026-09-26 下午修正（P4.29）**：本定论**已被推翻**——"正确构造"仍含 uint8 图像摧毁（脚本与 server 同源同错），模型真实输出正常。见阶段 18 / PI05_RECORD P4.29。
+- **连环坑（v1-v13，全部解决）**：①非交互 shell 缺 CANN 驱动路径 ②沙箱间歇拒 /dev/davinci_manager（需审批沙箱外跑）③OSMesa GL 与 NPU runtime 同进程两种死法（拆两阶段进程）④漏采样 monkey-patch 致纯 NPU 推理 segfault ⑤段错误进程泄漏 HBM（kill 后回收）⑥任务语言硬编码错（task7 当 task0）
+
+### 17.5 文档结构整合（14 → 8）
+
+目标结构（每模型 ≤2 文档 + 总过程记录 + 总结文档）：
+- 保留：README / CHANGELOG / PROJECT_TRACKING（总过程记录）/ LIBERO_NPU_MIGRATION（总结文档，已吸收 EXTENSIBILITY + VIDEO_ORIENTATION + 协议约定表）/ RENDER_DIFF_DIAGNOSIS（X-VLA①）/ OPENVLA_HANDOVER（OpenVLA①，已吸收 LIBERO_NPU_RECORD OpenVLA 部分 + 全量验证§8）/ PI05_TRACKING + PI05_RECORD（PI0.5①②）/ OPEN_SOURCE_CHECKLIST（开源事务，已吸收 FINAL_REVIEW 作附录）
+- 删除：EXTENSIBILITY.md / VIDEO_ORIENTATION.md / LIBERO_NPU_RECORD.md / FINAL_REVIEW.md（均已完成合并）；ATOMCODE_HANDOVER.md、GPU_INFER_README.md、ASSET_SNAPSHOT（待并入 PI05_TRACKING 后删除）
+
+### 17.6 问题表追加
+
+| # | 问题 | 根因 | 解决方法 | 状态 |
+|---|---|---|---|---|
+| 15 | 隐私清理把 bash 语法写进 5 个 .py | 机械替换未做语法回归 | os.environ.get + 绝对路径默认；清理后必须 py_compile 回归 | ✅ |
+| 16 | GPU 凭证明文入文档/脚本 | 07-18 扫描后新增文件未复扫 | 全量脱敏 + OPEN_SOURCE_CHECKLIST 附录 B 重扫清单 | ✅ |
+| 17 | 编排脚本 suite→ckpt 路径拼接错 | `${SUITE#libero-}` 不匹配下划线命名 | 改 `${SUITE/_/-}` | ✅ |
+| 18 | 后台 NPU 任务 npu 不可用 | 非交互 shell 缺 CANN 驱动库路径 | 启动脚本先 source ~/.bashrc 再 nohup setsid | ✅ |
+
+## 阶段 18：OpenVLA 断点续跑 + PI0.5 真根因收口闭环 0% 终结（2026-09-26 下午）
+
+> 用户指令：审查已完成验证 → 继续 OpenVLA 全量验证（对齐论文）→ PI0.5 修复 + 与论文对齐的全量验证（全部 NPU 上）→ 过程记录写 docs（每模型 ≤2 专项文档 + 总结 + 总过程记录）。
+
+### 18.1 已完成验证的审查结论
+- **X-VLA**：5 seed × 4 suite 全部一致（95.75% avg，std=0），无完善需求 ✅
+- **OpenVLA spatial**（首次全量 100 rollouts）：77.0% vs 官方 84.7%±0.9%（A100, 50trial×3seed）——单 seed n=100 的 2σ 内合理（binomial std≈3.6%），task 级无系统性 0%（30%~100%），软件渲染差异已由 X-VLA 工作归因。**无需完善，直接续跑其余 3 suite**
+
+### 18.2 OpenVLA 全量验证中断与断点续跑能力
+- 15:13 notebook 重启杀死两条验证流（spatial 完成、object task2 ep5、goal task0 ep8、libero_10 未开始）——暴露编排器无断点续跑能力
+- **新增 `--resume`**（eval_openvla_suite.py）：载入已完成 task 结果跳过（配置一致性校验）；安全性论证：`_init_env` 每 ep 独立 seed（init_seed+ep+100）+ 独立重建 env，与 task 顺序无关 → 续跑 ≡ 全新跑（统计等价）；编排器默认 RESUME=1
+- 双流重启：流A（NPU0:8011）goal→libero_10；流B（NPU1:8021）object resume（跳过 task0/1）
+
+### 18.3 PI0.5 真根因收口（P4.29，详见 PI05_RECORD P4.29 / PI05_TRACKING §六.20）
+用户约束"所有验证必须 NPU 上"→ 放弃 GPU 对比，改用**训练分布对照法**（server 输入逐维对照 ckpt norm_stats），半天收口三个月未破的闭环 0%：
+- **五重输入缺陷**：F 主因图像 uint8 未 /255（模型内 resize clamp 摧毁成二值图）；A quat wxyz 误解释（state ~10σ OOD）；A2 client.proprio 冻结首帧；B wrist 未 H+W 翻转；C 1-grip 反转错配
+- **敏感性测试**证明链路通（state/双图/语言均影响输出）→ 排除模型/NPU 损坏
+- **修复后快测**：task0 ep0/ep1 SUCCESS（77/82 步）——闭环 0% 终结；正确接近语义（grip=-1 开爪下降）
+- **前期定论修正**：P4.16"模型推理输出错方向"归因错误；P4.28 NPU 基准作废；GPU 对比 D/G 无必要（若照跑会两端一致误判"模型坏"）
+- **★ 全量验证完成（18:57）**：spatial **96.0%（96/100）** vs 官方 openpi 98.8% / lerobot repro 97.5%——同量级达标（n=100 单 seed 2σ 内），逐 task 7×100%/task8 90%/task9 90%/task5 70%，总耗时 2.9h（fp32 NPU1）。**三个月闭环 0% 悬案就此终结，PI0.5 NPU 迁移成功**
+- NPU1 中断 object 流做快速验证，全量结束后立即释放 NPU1 让 object resume（PI0.5 全量 2.9h < object 剩余 3h < libero_10 过夜，关键路径不变）
+
+### 18.4 全量验证安排（并行调度）
+| 流 | NPU | 内容 | 预计 |
+|---|---|---|---|
+| A | 0 | OpenVLA goal（100 ep）→ libero_10（100 ep，520 步上限） | goal ~19:30，libero_10 过夜 |
+| B（PI0.5） | 1 | pi0.5 spatial 10 task × 10 ep（fp32） | ~18:40 |
+| B' | 1 | object resume（task2 起，~74 ep） | PI0.5 完成后 |
+
+### 18.5 问题表追加
+
+| # | 问题 | 根因 | 解决方法 | 状态 |
+|---|---|---|---|---|
+| 19 | 验证流被 notebook 重启全灭丢进度 | 编排器无断点续跑 | eval --resume（seeding 与顺序无关，统计等价） | ✅ |
+| 20 | PI0.5 图像 uint8 直传模型 | 官方管线在 observation_processor /255，server 未对齐 | server permute.float()/255（P4.29 F） | ✅ |
+| 21 | PI0.5 state 姿态 ~10σ OOD | quat wxyz/xyzw 约定误判（P4.8 perm+signs 匹配错误目标） | robot0_eef_quat 按 xyzw 转 aa，必填（P4.29 A） | ✅ |
+| 22 | PI0.5 server 每查收首帧 proprio | client.proprio 只初始化一次+action 回传 | eval 每步 proprio=None（P4.29 A2） | ✅ |
+| 23 | PI0.5 夹爪语义反转 | 1-grip 复制自 OpenVLA 约定 | grip 直传（实证 -1=开/+1=合）（P4.29 C） | ✅ |
+
+## 阶段 19：模型专用入口清理（2026-09-27）
+
+- 删除 scripts 和 docs 根目录的模型专用软链接，共 17 个；保留 `scripts/openvla/`、`scripts/pi05/`、`scripts/xvla/` 与 `docs/openvla/`、`docs/pi05/`、`docs/xvla/` 实际文件。
+- 更新 py/sh/md 中的模型脚本、文档链接为子目录实际路径；修正 `scripts/xvla/run_planB_multi_seed.sh` 项目根目录计算，并同步 PI0.5/OpenVLA 编排脚本调用路径。
+- 未触碰 results、模型权重或运行进程；整理前后对实际代码文件执行 SHA256 核验，随后完成 bash -n、Python compile()、git diff --check 和旧平铺入口检查。
+
+## 阶段 20：文档证据审计与最新纠正（2026-09-27）
+
+> 本节是当前文档口径；前文阶段记录保留原文历史，不自动改写为当前结论。
+
+- **统计证据**：X-VLA 当前引用四套件原始统计为 90% / 99% / 100% / 94%，平均 95.75%。历史多 seed 记录使用相同 `init_seed=42`，不能作为独立环境样本，也不能据此断言 std=0 证明统计等价或完全可复现。
+- **OpenVLA 统计证据**：`results/openvla_full/` 中 spatial/goal/object/libero_10 分别为 77/100、79/100、75/100、57/100；`results/openvla/video_validation_2026-09-27/libero_object_results.json` 是独立 object 复验 10 段、5/10，不并入 object 全量。
+- **PI0.5 统计证据**：旧 run `results/pi05/spatial_100ep_2026-09-26/spatial_results.json` 为 96/100；task5=70%、task8=100%、task9=90%；`progress.log` 记录总耗时 10359.117s，即 172.65min、2.8775h，约 103.59s/episode。新 run `results/pi05/20260927_104705_120708_2242249/` 当前为 NPU0 fp32、task0 完成 4/10、全局 4/100，4/4 成功，仍在进行。原始 JSON、日志与结果统计保持分开。
+- **NPU 与视频限制**：日志包含 Ascend/torch_npu 运行证据；视频按实际 episode 运行产物记录，X/OpenVLA 视频暂不展开。
+- **论文参考限制**：论文/官方参考值与本项目原始统计分开；未核实来源标为待核实，不作“所有模型论文协议完全对齐”“同大小逐字节一致”“2sigma 内达标”“统计等价”或“差距完全归因渲染”等绝对结论。
+- **PI0.5 范围限制**：当前证据只支持 spatial；旧 run 已完成 96/100，新 run `results/pi05/20260927_104705_120708_2242249/` 正在 NPU0 fp32 上进行，当前已推进到 task0-8（partial JSON 的 `tasks_done=9`，全局 90/100），不能写成新 run 已完成或 PI0.5 全四 suite 完成。
+- **PI0.5 四 suite 证据与编排（2026-09-27）**：π0.5 原论文 [arXiv:2504.16054](https://arxiv.org/abs/2504.16054) 未直接报告 LIBERO 四 suite 分数；openpi 后续 `pi05_libero` 参考为 98.8/98.2/98.0/92.4，LeRobot 后续复现为 97.0/99.0/98.0/96.0。LIBERO 原始论文定义四套件；本地运行采用 10 ep/task、seed42、horizon 220/280/300/520，属于缩减复现。`/home/ma-user/work/lerobot_pi05_libero_official` 是当前唯一可读 checkpoint，未发现 suite 独立权重证据。新增 `scripts/pi05/run_pi05_full_libero.sh`：固定 NPU0/fp32、同一 checkpoint、独立端口/唯一目录、manifest 与逐 episode 视频核验；因 NPU0 活跃 spatial、NPU1 现有 OpenVLA 占用，暂不启动，不伪造全量完成。

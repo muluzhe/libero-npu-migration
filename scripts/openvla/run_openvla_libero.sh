@@ -1,4 +1,8 @@
 #!/bin/bash
+# ⚠️ DEPRECATED（2026-09-26）：路径B（官方 run_libero_eval.py）因 prismatic→dlimp→tensorflow
+# import 链在 OSMesa+NPU 环境 segfault 已弃用（详见 docs/openvla/OPENVLA_HANDOVER.md）。
+# 正确路径：bash scripts/openvla/run_openvla_full_validation.sh <npu_device> <port> <suite>...
+#
 # OpenVLA LIBERO NPU 验证（路径B：官官eval脚本 + NPU适配）
 # 用法: bash run_openvla_libero.sh <suite> <num_episodes> <seed>
 # suite: libero_spatial | libero_object | libero_goal | libero_10

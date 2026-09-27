@@ -1,4 +1,11 @@
 """
+⚠️ DEPRECATED（2026-09-26）：本 v1 server 是已知错误实现，请勿使用。
+- 把 OpenVLA 输出当 [pos3, quat4]（实际是 [pos3, aa3(axis-angle), grip1]）→ 闭环 0%
+- grip 硬编码 0.0、每步重复 seed/patch 等反模式
+正确实现：models/openvla/server_v2.py（已验证 spatial 76.0%），配合
+  scripts/openvla/run_openvla_full_validation.sh + scripts/openvla/eval_openvla_suite.py 使用。
+（保留本文件仅作历史参考，详见 docs/openvla/OPENVLA_HANDOVER.md）
+
 OpenVLA NPU 推理服务器（独立实现，绕过openvla官方eval脚本的import链问题）
 用 X-VLA 的 libero_client 跑仿真（不动 X-VLA 代码），通过 /act HTTP 接口对接。
 

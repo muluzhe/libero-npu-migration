@@ -1,34 +1,50 @@
 # LIBERO 仿真验证 NPU 迁移方案
 
-将 LIBERO 机器人仿真验证迁移到 Ascend NPU，无需 GPU 即可跑通 VLA 模型的闭环仿真评估。本方案以 **OSMesa 软件渲染** 为核心，支持多种 VLA 模型（X-VLA / OpenVLA / PI0 / SmolVLA / ACT / Diffusion Policy），X-VLA 作为首个验证通过的模型示例。
+将 LIBERO 机器人仿真验证迁移到 Ascend NPU，无需 GPU 即可跑通 VLA 模型的闭环仿真评估。本方案以 **OSMesa 软件渲染** 为核心，支持多种 VLA 模型（X-VLA / OpenVLA / PI0.5 / SmolVLA / ACT / Diffusion Policy）。当前有 NPU 日志证据的结果为 X-VLA、OpenVLA 与 PI0.5；评估支持按 episode 保存视频，视频范围以各次运行实际产物为准。
+
+**文档结构**（每模型 ≤2 文档 + 总过程记录 + 总结文档，详见 [docs/LIBERO_NPU_MIGRATION.md](docs/LIBERO_NPU_MIGRATION.md) §0）：
+复现看本 README → 全过程看 [PROJECT_TRACKING.md](docs/PROJECT_TRACKING.md) → 总结看 [LIBERO_NPU_MIGRATION.md](docs/LIBERO_NPU_MIGRATION.md) → 各模型细节看 [RENDER_DIFF_DIAGNOSIS.md](docs/xvla/RENDER_DIFF_DIAGNOSIS.md)（X-VLA）/ [OPENVLA_HANDOVER.md](docs/openvla/OPENVLA_HANDOVER.md)（OpenVLA）/ [PI05_TRACKING.md](docs/pi05/PI05_TRACKING.md) + [PI05_RECORD.md](docs/pi05/PI05_RECORD.md)（PI0.5）。
 
 ## 目录结构
 
 ```
 libero-npu-migration/
 ├── README.md                          # 本文档（复现指南）
+├── CHANGELOG.md                       # 变更日志
 ├── patches/                           # NPU 迁移补丁（唯一修改点）
 │   ├── robosuite_osmesa_render.py     # OSMesa 渲染适配（核心，含 read_pixels GL 坐标修复）
 │   └── robosuite_mj_fullM.py          # mujoco 3.10 API 兼容
-├── scripts/                           # 自动化脚本
+├── scripts/                           # 自动化脚本（按模型分类）
 │   ├── setup_env.sh                   # 环境搭建（依赖+渲染库+assets+patch）
 │   ├── apply_patches.py               # 自动应用 patch（幂等，可重复运行）
-│   └── run_eval.sh                    # 仿真验证一键运行
+│   ├── run_eval.sh                    # X-VLA 一键验证（openvla/pi0 见专用脚本）
+│   ├── openvla/run_openvla_full_validation.sh # OpenVLA 4 suite 全量验证编排器
+│   ├── openvla/eval_openvla_suite.py      # OpenVLA 任意 suite 验证脚本
+│   ├── pi05/eval_pi05_spatial.py + run_pi05_spatial.sh  # PI0.5 spatial 验证
+│   ├── gpu_infer_compare.py           # PI0.5 NPU/GPU 推理输出方向对比（双端同脚本）
+│   └── ...                            # 诊断/验证脚本（头部有弃用标注）
 ├── models/                            # 各 VLA 模型 NPU 推理服务器
-│   ├── xvla/server.py                 # X-VLA（已验证，成功率 90%）
-│   ├── openvla/server.py              # OpenVLA
-│   ├── pi0/server.py                  # PI0 / PI0.5
-│   ├── smolvla/server.py              # SmolVLA
-│   ├── act/server.py                  # ACT
-│   └── diffusion_policy/server.py     # Diffusion Policy
-├── docs/
-│   ├── VIDEO_ORIENTATION.md           # 视频倒置问题根因与修复（必读）
-│   └── EXTENSIBILITY.md              # 扩展到其他 VLA 模型指南
-└── results/                           # 验证结果（成功率+视频）
-    └── xvla/                          # X-VLA 验证结果
+│   ├── xvla/server.py                 # X-VLA（四套件原始统计平均 95.75%）
+│   ├── openvla/server_v2.py           # OpenVLA（已验证 spatial 76.0%；server.py 为弃用 v1）
+│   ├── pi0/server_v2.py               # PI0.5（推理+闭环跑通，0% 根因诊断中；server.py 为弃用骨架）
+│   ├── smolvla/server.py              # SmolVLA（骨架）
+│   ├── act/server.py                  # ACT（骨架）
+│   └── diffusion_policy/server.py     # Diffusion Policy（骨架）
+├── docs/                              # 总结、总过程和各模型专项文档
+│   ├── openvla/                       # OpenVLA 专项文档
+│   ├── pi05/                          # PI0.5 专项文档
+│   ├── xvla/                          # X-VLA 专项文档
+│   ├── ADAPTING_NEW_MODEL.md          # 新模型适配指南
+│   └── ...                            # 根目录公共文档
+└── results/                           # 验证结果（results/README.md）
+    ├── xvla/                          # X-VLA 多 seed 结果与视频
+    ├── openvla/                       # OpenVLA 结果与视频
+    ├── pi05/                          # PI0.5 结果、历史归档与视频
+    ├── openvla_full/                  # 当前/历史全量验证目录，任务运行时不移动
+    └── common/                        # 跨模型汇总和公共产物
 ```
 
-## 复现步骤（3 步）
+## 复现步骤（3 步，以 X-VLA 为例）
 
 ### 前置条件
 - 硬件：Ascend 910B（snt9b1）NPU 服务器
@@ -69,21 +85,28 @@ cat ./libero_eval_results/*/results.json
 ls ./libero_eval_results/*/*.mp4
 ```
 
-**预期结果**（X-VLA，固定 seed=42，10ep/suite）：4 suite 平均 **95.8%**（spatial 90% / goal 99% / object 100% / long 94%），视频方向正常。与论文官方 GPU 基准 98.1%量级一致，**NPU 迁移成功**，此结果可稳定复现。
+**已记录结果**（X-VLA，init_seed=42，4 套件各 10 ep）：spatial 90% / goal 99% / object 100% / long 94%，平均 **95.75%**。这是原始统计结果；论文参考值及协议来源另列，尚待逐项核实。详见 [RENDER_DIFF_DIAGNOSIS.md](docs/xvla/RENDER_DIFF_DIAGNOSIS.md)。
 
-### 成功率归因（必读）
+**OpenVLA 验证（专用路径）**
 
-**最终结论（2026-07-13）**。NPU 迁移成功，95.8% vs 论文 98.1%（-2.3%）。渲染差异的系统性影响远小于预想。
+OpenVLA 是 delta action 模型，不能走 `run_eval.sh`（动作语义不同），用专用编排器：
 
-详见 `docs/RENDER_DIFF_DIAGNOSIS.md` 与 `docs/PROJECT_TRACKING.md`（最终结果）。
+```bash
+# 4 suite 全量验证（自动起停 server，双卡可并行两条流，默认断点续跑）
+bash scripts/openvla/run_openvla_full_validation.sh 0 8011 libero_spatial libero_goal
+bash scripts/openvla/run_openvla_full_validation.sh 1 8021 libero_object libero_10
+# checkpoint 放 $OPENVLA_CKPTS/libero-{spatial,object,goal,10}/（官方微调版）
+```
 
-### OpenVLA 验证结果（2026-07-17）
+**已记录结果**：spatial 77/100（77.0%）、goal 79/100（79.0%）、object 75/100（75.0%）、libero_10 57/100（57.0%），均为 seed42、每 task 10 ep 的 NPU 结果。另有 object 独立视频复验 10 段，成功 5/10；该样本不混入 object 全量统计。论文/官方参考值与原始统计分开记录，来源待核实。详见 [OPENVLA_HANDOVER.md](docs/openvla/OPENVLA_HANDOVER.md) §8。
 
-OpenVLA spatial suite（10 task × 5 ep = 50 rollouts, seed 42, bf16+sdpa）：**76.0%** (38/50)，对比官方基准 84.7% ± 0.9%（A100, 3 seed × 50 trial/task）。单 seed 小样本差距 8.7pp 合理（bf16 NPU vs A100 fp32、单 seed vs 官方 3 seed 平均）。
+## PI0.5 验证（专用路径）
 
-**根因与修复**（详见 `docs/OPENVLA_HANDOVER.md` 阶段 12-13）：OpenVLA 输出 delta action，但 X-VLA client 默认 `act_type="abs"` 强制 `controller.use_delta=False`，delta pos 被当绝对目标坐标解释 → 机器人瞬间被指令拉到工作空间外的位置 → 永远 `done=False` → 闭环 0%。修复：改走 `act_type="rel"` 路径让 env 保持默认 `use_delta=True`，与官方 `run_libero_eval.py:228` 的 `env.step(action.tolist())` 语义等价。
+PI0.5 是 lerobot 框架的 delta chunk 模型，独立 conda env + 专用脚本（P4.29 修复版，输入构造契约见 [LIBERO_NPU_MIGRATION.md](docs/LIBERO_NPU_MIGRATION.md) §4.4）：
 
-**性能优化**：`server_v2.py` 全局预计算 crop 参数 + 固定 seed 只设一次 + `json_numpy.patch()` 只调一次 → 单步推理 1.5s → 0.45s（3.3x），SR 无损失。
+```bash
+bash scripts/pi05/run_pi05_spatial.sh   # 自动起 fp32 server + 跑 spatial 10 task × 10 ep，默认保存 results/pi05/videos/
+```
 
 ## 关键环境变量（运行前必须设置）
 
@@ -96,39 +119,31 @@ export LD_LIBRARY_PATH=$HOME/render_libs:/usr/lib64:$LD_LIBRARY_PATH
 export ASCEND_RT_VISIBLE_DEVICES=0
 ```
 
-`run_eval.sh` 已自动设置这些变量，手动运行时需先 export。
+`run_eval.sh` / `run_openvla_full_validation.sh` 已自动设置这些变量，手动运行时需先 export。**后台（nohup/setsid）跑 NPU 任务时，启动脚本必须先 source Ascend 环境**（`/usr/local/Ascend/ascend-toolkit/set_env.sh` + 驱动库路径），否则 `torch.npu.is_available()=False`（详见 [PI05_RECORD.md](docs/pi05/PI05_RECORD.md) 教训#33）。
 
 ## 视频倒置问题（必读）
 
-**根因**：OSMesa 渲染图像原点在左上（正常），GPU 的 `mjr_readPixels` 原点在左下（GL 坐标，上下颠倒）。LIBERO 客户端的 `_flip_agentview` 假设输入是 GPU 的颠倒图，若直接用 OSMesa 图会导致：① 视频倒置 ② 模型收到错误方向图像 → 成功率 0%。
-
-**修复**（唯一修改点）：在 `robosuite/utils/binding_utils.py` 的 `read_pixels` 中，对 OSMesa 渲染图做 `np.flip(img, 0)` 模拟 GPU 的 GL 坐标。这样 `libero_client.py` 保持官方原样零改动，视频方向自动正确，模型输入与训练数据一致。
-
-**详细说明**：见 `docs/VIDEO_ORIENTATION.md`
+根因是 GPU 与 OSMesa 的渲染坐标系差异（GL 原点左下 vs 左上），修复是在 `read_pixels` 做 `np.flip(img, 0)` 模拟 GL 坐标——`libero_client.py` 保持官方原样零改动。完整根因分析、三方案对比与验证方法见 [LIBERO_NPU_MIGRATION.md](docs/LIBERO_NPU_MIGRATION.md) §6。
 
 ## 支持的 VLA 模型
 
-| 模型 | 服务器代码 | 动作格式 | 迁移难度 | 验证状态 |
-|---|---|---|---|---|
-| **X-VLA** | `models/xvla/server.py` | `[pos3,rot6d,grip1]` | 低 | ✅ 已验证 95.8%(4 suite 平均, 固定 seed=42) |
-| **OpenVLA** | `models/openvla/server.py` | 离散 token | 低 | ✅ 已验证 spatial 76.0%(50 rollouts, seed 42) |
-| **PI0/PI0.5** | `models/pi0/server.py` | `[pos3,aa3,grip1]` | 中 | 待验证 |
-| **SmolVLA** | `models/smolvla/server.py` | 离散 token | 低 | 待验证 |
-| **ACT** | `models/act/server.py` | action chunk | 中 | 待验证 |
-| **Diffusion Policy** | `models/diffusion_policy/server.py` | DDPM 采样 | 中 | 待验证 |
+| 模型 | 服务器代码 | 动作格式 | 验证状态 |
+|---|---|---|---|
+| **X-VLA** | `models/xvla/server.py` | `[pos3,rot6d,grip1]` 绝对 | 已记录 4 套件结果：90% / 99% / 100% / 94%，平均 95.75%；历史多 seed 统计的独立性需谨慎解释 |
+| **OpenVLA** | `models/openvla/server_v2.py` | `[delta_pos3,aa3,grip1]` | 已记录：spatial 77%、goal 79%、object 75%、libero_10 57%；另有 object 10 段视频复验 5/10 |
+| **PI0.5** | `models/pi0/server_v2.py` | `[delta_pos3,aa3,grip1]` chunk | 旧 run 已记录 spatial 96.0%（96/100）；新 run 正在 NPU0 fp32 进行，当前 4/100（task0 已完成 4/10，4/4 成功） |
+| **SmolVLA** | `models/smolvla/server.py` | 离散 token | 待验证（骨架） |
+| **ACT** | `models/act/server.py` | action chunk | 待验证（骨架） |
+| **Diffusion Policy** | `models/diffusion_policy/server.py` | DDPM 采样 | 待验证（骨架） |
 
-运行其他模型：
-```bash
-bash scripts/run_eval.sh openvla /path/to/openvla-model ./results_openvla 10
-bash scripts/run_eval.sh pi0 /path/to/pi0-model ./results_pi0 10
-```
+新模型迁移指南（含各模型差异点与一键运行支持边界）见 [LIBERO_NPU_MIGRATION.md](docs/LIBERO_NPU_MIGRATION.md) §7；评估协议约定（episodes/seed/步数上限/success 判定）见同文档 §5。
 
 ## 技术路线
 
-- **推理**：torch_npu 在线推理（fp32 + eager attn），零模型代码改动
+- **推理**：torch_npu 在线推理（X-VLA fp32+eager；OpenVLA bf16+sdpa 最优，fa2/INT8 NPU 不支持）
 - **渲染**：OSMesa 软件渲染（swrast_dri），无需 GPU 设备
 - **仿真**：LIBERO benchmark（robosuite + mujoco 3.10）
-- **硬件**：Ascend 910B4，CANN 8.2.RC1
+- **硬件**：Ascend 910B4 ×2，CANN 8.5.2
 
 ## License
 

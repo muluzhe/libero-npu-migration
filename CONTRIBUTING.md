@@ -5,7 +5,7 @@ Thanks for your interest in contributing! This project migrates Vision-Language-
 ## Ways to contribute
 
 - **Bug reports**: open an issue with reproduction steps (env, command, expected vs actual).
-- **New VLA adapters**: add `models/<model>/server.py` following the existing `xvla`/`openvla` pattern. See `docs/EXTENSIBILITY.md`.
+- **New VLA adapters**: add `models/<model>/server.py` following the existing `xvla`/`openvla` pattern. See [docs/ADAPTING_NEW_MODEL.md](docs/ADAPTING_NEW_MODEL.md).
 - **Reproducibility**: if you ran a benchmark with different seeds/suites, share the `results.json` (no videos).
 
 ## Development workflow

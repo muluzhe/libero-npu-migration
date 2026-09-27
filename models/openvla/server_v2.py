@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 # 同源转换链：用X-VLA client的AxisAngle_to_Rotate6D确保两端等价
-sys.path.insert(0, os.environ.get('X_VLA_ROOT', 'X-VLA') + '/evaluation/libero')
+sys.path.insert(0, os.environ.get('X_VLA_ROOT', os.path.expanduser('~/work/X-VLA')) + '/evaluation/libero')
 from libero_client import LiberoAbsActionProcessor
 _proc_rot = LiberoAbsActionProcessor()
 

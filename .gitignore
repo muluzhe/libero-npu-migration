@@ -59,6 +59,7 @@ X-VLA-libero/
 render_libs/
 
 # CANN / NPU 临时
+kernel_meta/
 *.npu_cache
 ascend_*.log
 

@@ -15,7 +15,7 @@ os.environ.update(NUMBA_DISABLE_JIT='1', MUJOCO_GL='osmesa', LIBGL_ALWAYS_SOFTWA
 os.environ['LIBGL_DRIVERS_PATH'] = os.path.expanduser('~/render_libs/dri')
 os.environ['LD_LIBRARY_PATH'] = os.path.expanduser('~/render_libs') + ':/usr/lib64:' + os.environ.get('LD_LIBRARY_PATH','')
 
-sys.path.insert(0, '${X_VLA_ROOT:?usage: X_VLA_ROOT env var required}/evaluation/libero')
+sys.path.insert(0, os.environ.get('X_VLA_ROOT', os.path.expanduser('~/work/X-VLA')) + '/evaluation/libero')
 from libero_client import LIBEROEval, ClientModel
 
 SERVER = "127.0.0.1"

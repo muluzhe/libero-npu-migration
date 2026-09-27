@@ -15,13 +15,13 @@ for m in ('dlimp','rlds','ox_pilot','tensorflow','tensorflow.data'):
         mm = types.ModuleType(m); mm.__spec__ = importlib.machinery.ModuleSpec(m, None); mm.__path__ = []; sys.modules[m] = mm
 
 import torch_npu
-sys.path.insert(0, '${OPENVLA_ROOT:?usage: OPENVLA_ROOT env var required}')
-sys.path.insert(0, '${X_VLA_ROOT:?usage: X_VLA_ROOT env var required}/evaluation/libero')
+sys.path.insert(0, os.environ.get('OPENVLA_ROOT', os.path.expanduser('~/work/openvla')))
+sys.path.insert(0, os.environ.get('X_VLA_ROOT', os.path.expanduser('~/work/X-VLA')) + '/evaluation/libero')
 
 # 加载官方模型（bf16+eager，匹配我们server配置）
 print("=== 加载官方OpenVLA模型（bf16+sdpa）===")
 from transformers import AutoModelForVision2Seq, AutoProcessor
-CKPT = '${CKPT_BASE:?usage: CKPT_BASE env var required}/libero-spatial'
+CKPT = os.environ.get('CKPT_BASE', os.path.expanduser('~/work/openvla_checkpoints')) + '/libero-spatial'
 processor_off = AutoProcessor.from_pretrained(CKPT, trust_remote_code=True)
 model_off = AutoModelForVision2Seq.from_pretrained(CKPT, attn_implementation='sdpa', torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, trust_remote_code=True).to('npu:0').to(torch.bfloat16)
 model_off.eval()

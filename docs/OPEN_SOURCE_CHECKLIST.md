@@ -133,7 +133,35 @@ jobs:
 |---|---|---|
 | GitHub handle | `muluzhe` | ✅ 已替换到 `CITATION.md` 的 BibTeX `url` |
 | LICENSE | Apache-2.0 | ✅ 已替换 `LICENSE` 全文，已同步 `CONTRIBUTING.md` / `CHANGELOG.md` 许可引用 |
-| `docs/OPENVLA_HANDOVER.md` 和 `docs/PROJECT_TRACKING.md` | 保留现状，随仓库公开 | ✅ 未动 |
+| `docs/openvla/OPENVLA_HANDOVER.md` 和 `docs/PROJECT_TRACKING.md` | 保留现状，随仓库公开 | ✅ 未动 |
 | 2000 个 rollout 视频（37MB） | 本地留存，不入库 | ✅ 已在 `/tmp/libero_videos_backup/`，`.gitignore` 排除 `*.mp4` |
 
 所有决策已落地，可直接按本文件第 1~6 步操作发布到 `https://github.com/muluzhe/libero-npu-migration`。
+
+---
+
+## 附录 A：发布前检查记录（2026-07-18，原 FINAL_REVIEW.md 并入）
+
+**结论（07-18 时点）**: ✅ 通过——隐私清理彻底（用户名/conda 路径/云厂商代理/HF 镜像/品牌名零残留）、7 个开源规范文件齐全、15 py + 4 sh 语法全过、体积 ~976KB、.gitignore 覆盖完整。
+
+复查命令（发布前重跑）：
+```bash
+grep -rE "/home/ma-user|ma-user|/anaconda3/|huawei|华为|modelarts|hf-mirror|proxy-notebook|192\.168\.|10\.0\.|ABC123456789" \
+  --exclude-dir=.git --exclude-dir=kernel_meta . 2>/dev/null | grep -v "\.pyc"
+find . -name "*.py" -not -path "*/.*" | xargs -n1 python -m py_compile && find . -name "*.sh" | xargs -n1 bash -n
+```
+
+## 附录 B：07-18 检查后新增内容的重扫清单（2026-09-26）
+
+07-18 的"零残留"结论**不覆盖** 07-20 后新增的 PI0.5 阶段文件。2026-09-26 项目整理时发现并已处理：
+
+| 项 | 状态（2026-09-26） |
+|---|---|
+| GPU 服务器 IP/SSH 用户名/密码（PI05_RECORD P4.26-27、PI05_TRACKING §六.17-18、ATOMCODE_HANDOVER、gpu_http_proxy.sh） | ✅ 已全部脱敏为 `<GPU_IP>` / "见团队内部记录" |
+| 23 处 `/home/ma-user` 硬编码回流（PI05 系列脚本） | ⚠️ 部分修复（gpu_infer_compare.py 已参数化；run_pi05_spatial.sh 等仍硬编码，发布前需再扫） |
+| 07-17 隐私清理误伤：bash 语法 `${X_VLA_ROOT:?...}` 混入 5 个 .py 文件（eval/diag/apply_patches） | ✅ 已修复为 os.environ.get + 绝对路径默认值 |
+| `kernel_meta/`（NPU 编译缓存）与 `__pycache__/` 重新累积 | ⚠️ 发布前删除并确认 .gitignore 生效 |
+| `results/pi05_spatial/progress.log`、`ASSET_SNAPSHOT_2026-07-21.md`（过期结论） | ⚠️ ASSET_SNAPSHOT 已删除；progress.log 按 .gitignore 排除 |
+| gpu_infer_compare.py / i2_real_obs_infer.py 的 state schema 漂移（P4.28） | ✅ 已对齐 server_v2.py（P4.7/P4.8 schema） |
+
+**发布前必做**：重跑附录 A 复查命令 + `git status` 人工过目 staged 文件。

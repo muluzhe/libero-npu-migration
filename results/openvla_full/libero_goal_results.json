@@ -1,0 +1,176 @@
+{
+  "suite": "libero_goal",
+  "config": {
+    "num_ep_per_task": 10,
+    "eval_horizon": 300,
+    "act_type": "rel",
+    "seed": 42
+  },
+  "overall_success_rate": 0.79,
+  "total_rollouts": 100,
+  "total_successes": 79,
+  "total_time_min": 307.8274864435196,
+  "official_baseline": 0.792,
+  "tasks": {
+    "0": {
+      "language": "open the middle drawer of the cabinet",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "task_success_rate": 0.9
+    },
+    "1": {
+      "language": "put the bowl on the stove",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "task_success_rate": 1.0
+    },
+    "2": {
+      "language": "put the wine bottle on top of the cabinet",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0
+      ],
+      "task_success_rate": 0.8
+    },
+    "3": {
+      "language": "open the top drawer and put the bowl inside",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "task_success_rate": 0.7
+    },
+    "4": {
+      "language": "put the bowl on top of the cabinet",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "task_success_rate": 1.0
+    },
+    "5": {
+      "language": "push the plate to the front of the stove",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "task_success_rate": 0.7
+    },
+    "6": {
+      "language": "put the cream cheese in the bowl",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0
+      ],
+      "task_success_rate": 0.7
+    },
+    "7": {
+      "language": "turn on the stove",
+      "successes": [
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "task_success_rate": 0.8
+    },
+    "8": {
+      "language": "put the bowl on the plate",
+      "successes": [
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "task_success_rate": 0.6
+    },
+    "9": {
+      "language": "put the wine bottle on the rack",
+      "successes": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "task_success_rate": 0.7
+    }
+  }
+}

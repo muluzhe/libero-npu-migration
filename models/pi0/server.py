@@ -1,4 +1,9 @@
 """
+⚠️ DEPRECATED（2026-09-26）：本文件是未实测骨架，API 假设错误（model.predict_action(**inputs, steps=...)
+对 lerobot PI05Policy 不成立），请勿使用。
+正确实现：models/pi0/server_v2.py（适配 lerobot 框架，推理+闭环已跑通），
+配合 scripts/pi05/run_pi05_spatial.sh 使用，详见 docs/pi05/PI05_TRACKING.md。
+
 PI0 / PI0.5 NPU 推理服务器
 flow-matching 采样循环，需 eager attn。
 """

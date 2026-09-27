@@ -10,7 +10,7 @@ try:
 except ImportError:
     _HAS_NPU = False
 
-sys.path.insert(0, os.environ.get("X_VLA_ROOT", "X-VLA"))
+sys.path.insert(0, os.environ.get("X_VLA_ROOT", os.path.expanduser("~/work/X-VLA")))
 from models.modeling_xvla import XVLA
 from models.processing_xvla import XVLAProcessor
 

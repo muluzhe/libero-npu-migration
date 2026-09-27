@@ -1,0 +1,182 @@
+{
+  "model": "pi0.5_lerobot_pi05-libero",
+  "suite": "libero_spatial",
+  "act_type": "rel",
+  "init_seed": 42,
+  "num_episodes": 10,
+  "eval_horizon": 220,
+  "tasks_done": 10,
+  "task_results": [
+    {
+      "task_id": 0,
+      "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 1,
+      "language": "pick up the black bowl next to the ramekin and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 2,
+      "language": "pick up the black bowl from table center and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 3,
+      "language": "pick up the black bowl on the cookie box and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 4,
+      "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 5,
+      "language": "pick up the black bowl on the ramekin and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 6,
+      "language": "pick up the black bowl next to the cookie box and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 7,
+      "language": "pick up the black bowl on the stove and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 8,
+      "language": "pick up the black bowl next to the plate and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "task_id": 9,
+      "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+      "success_rate": 0.0,
+      "episodes": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "current_overall_sr": 0.0
+}

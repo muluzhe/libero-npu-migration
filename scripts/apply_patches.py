@@ -105,7 +105,8 @@ def main():
     # mujoco 3.10 API 兼容
     patch_mj_fullm(sp / "robosuite" / "controllers" / "base_controller.py")
     # 确认 libero_client 官方原版
-    verify_libero_client("${X_VLA_ROOT:?usage: X_VLA_ROOT env var required}/evaluation/libero/libero_client.py")
+    import os
+    verify_libero_client(os.environ.get('X_VLA_ROOT', os.path.expanduser('~/work/X-VLA')) + "/evaluation/libero/libero_client.py")
 
     print()
     print("核心修复说明：")

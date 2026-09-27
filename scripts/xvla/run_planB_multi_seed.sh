@@ -5,7 +5,7 @@
 set -e
 
 PY=python
-PROJECT=${PROJECT_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}
+PROJECT=${PROJECT_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}
 SEEDS=(42 123 456 789 2024)
 SUITES="libero_spatial libero_goal libero_object libero_10"
 EP=10
@@ -28,7 +28,7 @@ echo "[1] 重启推理服务器..."
 ps -ef | grep deploy.py | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null; sleep 2
 cd ${X_VLA_ROOT:?usage: X_VLA_ROOT env var required} && rm -rf logs
 nohup setsid env ASCEND_RT_VISIBLE_DEVICES=0 $PY deploy.py \
-  --model_path ${MODEL_PATH:?usage: MODEL_PATH env var required} --device auto --port $PORT --host 0.0.0.0 --output_dir logs \
+  --model_path "${MODEL_PATH:?usage: MODEL_PATH env var required}" --device npu:0 --port "$PORT" --host 0.0.0.0 --output_dir logs \
   > /tmp/xvla_srv_planB.log 2>&1 &
 disown 2>/dev/null
 for i in $(seq 1 50); do
@@ -60,9 +60,9 @@ done
 # 3. 聚合结果
 echo ""
 echo "=== 聚合5个seed结果 ==="
-$PY << 'PYEOF'
+PROJECT_ROOT="$PROJECT" $PY << 'PYEOF'
 import json, os, statistics
-PROJECT='$PROJECT'
+PROJECT=os.environ['PROJECT_ROOT']
 seeds=[42,123,456,789,2024]
 suites=['libero_spatial','libero_goal','libero_object','libero_10']
 print(f"{'seed':<6} {'spatial':<10} {'goal':<8} {'object':<8} {'long':<8} {'avg':<8}")
