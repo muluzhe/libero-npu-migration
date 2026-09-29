@@ -2,7 +2,7 @@
 
 > **用途**: 实时记录 pi0.5 模型在 Ascend 910B4 NPU 上的 LIBERO 仿真验证全过程、阶段进展、问题与解决方法  
 > **创建时间**: 2026-07-20  
-> **最新纠正（2026-09-27）**：本文件保留历史过程记录。旧 run `results/pi05/spatial_100ep_2026-09-26/spatial_results.json` 为 spatial 96/100，task5 70%、task8 100%、task9 90%，总耗时 10359s（172.65min，2.8775h，约103.59s/ep）；新 run `results/pi05/20260927_104705_120708_2242249/` 正在 NPU0 fp32 上进行，当前 task0 已完成 4/10、全局 4/100，4/4 成功，已保存 4 个 episode 视频。旧目录保留，新 run 未完成，不写完成结论。
+> **历史快照说明（2026-09-29）**：本文主体保留 PI0.5 的阶段性排查过程，较早章节中的“进行中”“待验证”和旧 run 数字均是当时的历史状态，不代表当前项目状态。当前四套件最终原始统计为 spatial 96/100、object 100/100、goal 97/100、libero_10 93/100，合计 386/400（96.5%）；运行入口为 `scripts/pi05/run_pi05_full_libero.sh`，最终产物索引见 `results/pi05/full_libero/`。
 >
 > **最后更新**: 2026-09-27  
 > **约束**: 不影响 X-VLA / OpenVLA 已验证结果，不改动其他模型文件，独立 conda env + 独立输出目录
@@ -42,7 +42,7 @@
 
 ### 2.4 外部可参考基础
 
-- **cann-recipes-embodied-ai**（华为官方仓库，已 clone 到 `/home/ma-user/work/cann-recipes-embodied-ai/`）：
+- **cann-recipes-embodied-ai**（华为官方仓库，已 clone 到 `$CANN_RECIPES_ROOT/`）：
   - `manipulation/pi05/infer_with_torch/`：pi0.5 在 Ascend NPU 的推理示例
     - `run_pi05_example.py`（lerobot `PI05Policy.select_action` 推理示例）
     - `infer_utils.py`（device 选择 / dummy observation / dtype 迁移工具）
@@ -174,7 +174,7 @@ lerobot 官方提供 `lerobot-eval` CLI 一键跑 LIBERO 仿真，但：
 | 包 | 版本 | 用途 |
 |---|---|---|
 | torch | 2.7.1 | 与 PyTorch-2.7.1 env 对齐 |
-| torch_npu | 2.7.1.post2 | NPU 推理（modelarts 私有源） |
+| torch_npu | 2.7.1.post2 | NPU 推理（受限 Python 软件源） |
 | numpy | 1.26.4 | torch_npu 要 numpy<2 |
 | transformers | 4.53.3 | lerobot fc296548 pi extra 要求 `fix/lerobot_openpi` 分支版 |
 | lerobot | fc296548 editable | cann-recipes 验证过的 commit |
@@ -287,7 +287,7 @@ FULL LOAD OK
 
 ### 阶段 8：修复根因 + 重建 env + 重跑验证（2026-07-21 进行中，根因再诊断到 P4.8）
 
-**前置阻塞**：lerobot-pi05 conda env 被清（P4.6），必须先重建才能重跑。**源码 `/home/ma-user/work/lerobot_pi05/` 完好**（commit fc296548），无需重 clone，只需 `conda create` + 重装依赖 + lerobot editable reinstall。
+**前置阻塞**：lerobot-pi05 conda env 被清（P4.6），必须先重建才能重跑。**源码 `$LEROBOT_PI05_ROOT/` 完好**（commit fc296548），无需重 clone，只需 `conda create` + 重装依赖 + lerobot editable reinstall。
 
 **完成进度**：
 1. ✅ **重建 lerobot-pi05 env**（torch 2.7.1+cpu + torch_npu 2.7.1.post2 + NPU available + lerobot 0.4.3 + PI05Policy/LiberoEnv/robosuite 1.4.0 全 import OK）
@@ -490,7 +490,7 @@ F1+F4 都生效但闭环仍 0%（机器人微动 0.118 方向错），用户拍�
 
 | 方面 | 结论 | 证据 |
 |---|---|---|
-| **1 模型真伪** | ✅ **是真 pi0.5 flow matching 架构**——`action_expert_variant: gemma_300m` + `chunk_size: 50` + `n_action_steps: 10` 与 lerobot_pi05 `configuration_pi05.py:36` 官方基准完全一致；源码注释明示 "see openpi"（PaliGemmaWithExpertModel + Gemma + flow matching），是 OpenPI 官方 pi0.5 架构的 lerobot 复刻。但 ckpt 来自 `jade_choghari/pi05-t5` 个人 repo 微调版（`pretrained_path="lerobot/pi05_libero_finetuned"` + `job_name="libero_training_fast"` + `dataset.root="/fsx/jade_choghari/data/libero"` AWS SageMaker 训练），**无 trainer_state.json** 无训练 loss 收敛记录 | config.json + configuration_pi05.py |
+| **1 模型真伪** | ✅ **是真 pi0.5 flow matching 架构**——`action_expert_variant: gemma_300m` + `chunk_size: 50` + `n_action_steps: 10` 与 lerobot_pi05 `configuration_pi05.py:36` 官方基准完全一致；源码注释明示 "see openpi"（PaliGemmaWithExpertModel + Gemma + flow matching），是 OpenPI 官方 pi0.5 架构的 lerobot 复刻。但 ckpt 来自 `上游微调仓库/pi05-t5` 个人 repo 微调版（`pretrained_path="lerobot/pi05_libero_finetuned"` + `job_name="libero_training_fast"` + `dataset.root="<TRAINING_DATA_ROOT>/libero"` AWS SageMaker 训练），**无 trainer_state.json** 无训练 loss 收敛记录 | config.json + configuration_pi05.py |
 | **2 推理链路** | ✅ **一致**——server `preprocess→predict_action_chunk→postprocess` 与 X-VLA 官方同链路（#6 印 diff=0.156）；preprocessor norm_map `ACTION:MEAN_STD` 与 server 归一化对齐 | server_v2.py + libero_client.py |
 | **3 闭环流程** | ⚠️ **存在两处不一致**——① X-VLA 官方便样 `use_delta=False` abs 模式，我们 eval 用 `act_type="rel"` rel 模式（abs 闭环验证仍 0% 说明非根因）；② **关键新发现**：X-VLA 官方便样 `npu_e2e_verify.py:146` `proprio[:9]=action_raw[-1,:9].copy()` **proprio 直接用 server 返的 chunk 末步 ori6d 覆盖**，我们 server P4.5 v2 末步 proprio 原值回传（chunk 末步 [:9]=proprio 原值）——ori6d convention 不一致 | npu_e2e_verify.py:140-149 + server_v2.py P4.5 v2 |
 
@@ -522,16 +522,16 @@ F1+F4 都生效但闭环仍 0%（机器人微动 0.118 方向错），用户拍�
 
 | 对比项 | 我们 ckpt | 官方便样基准 | 同源？ |
 |---|---|---|---|
-| **repo_id** | `jade_choghari/pi05-t5`（个人 AWS SageMaker 微调） | `lerobot/pi05-libero`（lerobot 官方 LIBERO 微调） | **❌ 不同源** |
+| **repo_id** | `上游微调仓库/pi05-t5`（个人 AWS SageMaker 微调） | `lerobot/pi05-libero`（lerobot 官方 LIBERO 微调） | **❌ 不同源** |
 | **pretrained_path** | `lerobot/pi05_libero_finetuned` | `lerobot/pi05-libero` | **❌ 不同** |
 | **cann-recipes 官方便样** | — | `modelscope.cn/models/lerobot/pi05_base.git` commit `d856522`（base 模型，无 LIBERO 微调，只验证推理能跑通） | **❌ 不同** |
 | **闭环成功率** | **0%** | openpi 官方 96.85% / lerobot 复现 97.5% | **量级差距** |
 | **训练 loss 收敛记录** | **无 trainer_state.json** | lerobot 官方有完整训练记录 | **存疑** |
 
 ### 颠覆性定论铁证
-1. PI05_TRACKING.md §4.2 冰示决策选 `lerobot/pi05-libero`（4B safetensors，直接 LIBERO 微调，含 norm stats + processor，最高），但**实际加载的 ckpt 是 `jade_choghari/pi05-t5`（个人微调版）不是 `lerobot/pi05-libero`（官方便样）**——**ckpt 来源错配是根因方向**！
+1. PI05_TRACKING.md §4.2 冰示决策选 `lerobot/pi05-libero`（4B safetensors，直接 LIBERO 微调，含 norm stats + processor，最高），但**实际加载的 ckpt 是 `上游微调仓库/pi05-t5`（个人微调版）不是 `lerobot/pi05-libero`（官方便样）**——**ckpt 来源错配是根因方向**！
 2. PROJECT_TRACKING.md:758 明示关键决策"不用 cann-recipes 的 base 模型（无 LIBERO 微调），改用 `lerobot/pi05-libero` 直接对比官方基准"——但**实际加载的是 jade_choghari/pi05-t5 不是 lerobot/pi05-libero**，与决策不符！
-3. server_v2.py:300 `--model_path required` + :354 `PI05Policy.from_pretrained(args.model_path)` + `run_pi05_spatial.sh:22` `--model_path /home/ma-user/work/pi05_libero_ckpt`——server 加载的是 `pi05_libero_ckpt` 目录（jade_choghari/pi05-t5），**不是 lerobot/pi05-libero 官方 ckpt**
+3. server_v2.py:300 `--model_path required` + :354 `PI05Policy.from_pretrained(args.model_path)` + `run_pi05_spatial.sh:22` `--model_path $PI05_CKPT_ROOT`——server 加载的是 `pi05_libero_ckpt` 目录（jade_choghari/pi05-t5），**不是 lerobot/pi05-libero 官方 ckpt**
 4. `pi05_libero_ckpt/config.json` 真值：`repo_id="jade_choghari/pi05-t5"` + `pretrained_path="lerobot/pi05_libero_finetuned"`——确认加载的是个人微调版不是官方便样
 5. cann-recipes 官方便样 `download_code_and_data.sh:117` 用 `modelscope.cn/models/lerobot/pi05_base.git`（base 模型无 LIBERO 微调，只验证推理能跑通不验证闭环成功率）
 
@@ -641,12 +641,12 @@ F5+H2 组合定论真根因在源码版本不匹配（源码 PI05Config 不认 c
 ### F6 实施步骤
 1. **加字段**：`configuration_pi05.py:82` PI05Config "Finetuning settings" 段加 `use_peft: bool = False  # Whether to use PEFT (LoRA) adapters — added for ckpt config.json compatibility`
 2. **语法检查**：`python3 -c "from lerobot.policies.pi05.configuration_pi05 import PI05Config; c=PI05Config(); print(c.use_peft)"` → `use_peft: False` 语法 OK
-3. **加载验证**：`PI05Policy.from_pretrained("/home/ma-user/work/lerobot_pi05_libero_official")` → `STEP4_load_OK_DecodingError解` + `All keys loaded successfully!` + `use_peft: False chunk: 50 n_act: 10`——**F6 修复真解了 DecodingError**
+3. **加载验证**：`PI05Policy.from_pretrained("$PI05_OFFICIAL_CKPT_ROOT")` → `STEP4_load_OK_DecodingError解` + `All keys loaded successfully!` + `use_peft: False chunk: 50 n_act: 10`——**F6 修复真解了 DecodingError**
 4. **闭环验证**：跑 `eval_pi05_task0.py --act_type rel` 1 episode → **success=0.0 耗时 236.6s 仍 0%**
 
 ### F6 实施坑（环境变量 + tokenizer + compile 三连）
 - **坑 1：libhccl.so torch_npu 后端加载失败**——setsid/nohup 子 shell 没继承完整 LD_LIBRARY_PATH，报 `ImportError: libhccl.so cannot open shared object file` + `RuntimeError: Failed to load backend extension: torch_npu`。解决：用 run_pi05_spatial.sh �基准脚本环境变量（当前 shell env 已验证 torch_npu OK）
-- **坑 2：tokenizer �联网阻断**——官方便样 ckpt processor 依赖 `google/paligemma-3b-pt-224` tokenizer（HF 离线模式找不到缓存报 `OSError: couldn't connect to huggingface.co`）。解决：把 `policy_preprocessor.json` 的 `tokenizer_name` 从 `google/paligemma-3b-pt-224` 改为本地 `/home/ma-user/work/paligemma3b_hf`（绕过 HF 联网，与我们 ckpt 同用本地路径）
+- **坑 2：tokenizer �联网阻断**——官方便样 ckpt processor 依赖 `google/paligemma-3b-pt-224` tokenizer（HF 离线模式找不到缓存报 `OSError: couldn't connect to huggingface.co`）。解决：把 `policy_preprocessor.json` 的 `tokenizer_name` 从 `google/paligemma-3b-pt-224` 改为本地 `$PALIGEMMA_ROOT`（绕过 HF 联网，与我们 ckpt 同用本地路径）
 - **坑 3：compile inductor 缺 torch_mlir**——官方便样 ckpt `compile_model: True` 启用 torch.compile inductor backend，NPU 环境缺 torch_mlir 报 `ImportError: torch_mlir is not installed`。解决：把 `config.json` 的 `compile_model` 从 `True` 改为 `False`（与我们 ckpt 基准一致）
 
 ### F6 闭环验证结果——颠覆性定论
@@ -838,13 +838,13 @@ J 实施定论 CPU vs NPU 对比路径断需 GPU 环境后，用户提供 RTX409
 ### 本机测 GPU 代理透 SSH 连通性
 | 测试项 | 结果 | 铁证 |
 |---|---|---|
-| curl --proxytunnel <GPU_IP>:80 透 SSH 32222 | ❌ `Connection timed out` | curl 直连 80 端口不可达 |
-| 代理白名单是否允许任意 IP 的 80 端口 | ❌ **拒所有外网 IP**——<GPU_IP>:80 / www.baidu.com:80 / 223.5.5.5:80 / 114.114.114.114:80 全 Establish HTTP proxy tunnel 后无 200 响应 | curl --proxytunnel 多 IP 测试 |
+| curl --proxytunnel <GPU_ENDPOINT>:80 透 SSH 32222 | ❌ `Connection timed out` | curl 直连 80 端口不可达 |
+| 代理白名单是否允许任意 IP 的 80 端口 | ❌ **拒所有外网 IP**——<GPU_ENDPOINT>:80 / <TEST_ENDPOINT_1>:80 / <TEST_ENDPOINT_2>:80 / <TEST_ENDPOINT_3>:80 全 Establish HTTP proxy tunnel 后无 200 响应 | curl --proxytunnel 多 IP 测试 |
 
 ### 阻断根因定论
-- **ModelArts 代理白名单拒所有外网 IP 的 80 端口**——不是 SSH 端口问题，是**本机出站代理白名单拒所有外网 IP**（<GPU_IP>:80 同 www.baidu.com:80 等公网 IP 都不可达）
+- **受限环境代理白名单拒所有外网 IP 的 80 端口**——不是 SSH 端口问题，是**本机出站代理白名单拒所有外网 IP**（<GPU_ENDPOINT>:80 等测试地址 都不可达）
 - 代理白名单只允许特定域名（华为云内网 myhuaweicloud.com 等），**任意外网 IP 的 80 端口都无法透出**
-- GPU HTTP 代理透 SSH 方案被代理白名单拒——<GPU_IP>:80 同样不可达
+- GPU HTTP 代理透 SSH 方案被代理白名单拒——<GPU_ENDPOINT>:80 同样不可达
 
 ### 方向 D/G 彻底阻断
 - 本 NPU 服务器（华为云 ModelArts notebook）出站网络限制拒所有外网 IP，**SSH 直连 + HTTP 代理透 SSH 两路径均阻断**
@@ -858,7 +858,7 @@ J 实施定论 CPU vs NPU 对比路径断需 GPU 环境后，用户提供 RTX409
 **剩余根因方向 D/G 彻底阻断**——本 NPU 服务器出站网络受限无法 ssh 连接 GPU 服务器对比 GPU 推理输出方向（SSH 直连 + HTTP 代理透 SSH 两路径均被代理白名单拒）。
 
 ### 产出
-- 本轮 GPU HTTP 代理透 SSH 方案阻断全证据（GPU 服务器 HTTP 代理已启动 + 本机测 <GPU_IP>:80 不可达 + 代理白名单拒所有外网 IP 铁证）
+- 本轮 GPU HTTP 代理透 SSH 方案阻断全证据（GPU 服务器 HTTP 代理已启动 + 本机测 <GPU_ENDPOINT>:80 不可达 + 代理白名单拒所有外网 IP 铁证）
 - TRACKING §六.18 归档
 - RECORD P4.27
 
@@ -947,9 +947,9 @@ J 实施定论 CPU vs NPU 对比路径断需 GPU 环境后，用户提供 RTX409
 
 ### 7.1 开工检查清单
 1. **conda env**：`conda env list` 确认 `lerobot-pi05` 存在（历史上多次被外部清理，被清则按 §二.2 重建：torch 2.7.1+cpu + torch_npu 2.7.1.post2 + lerobot fc296548 editable + numpy 1.26.4）
-2. **源码**：`ls /home/ma-user/work/lerobot_pi05/src` 确认在（含 F6 修复：configuration_pi05.py 的 use_peft 字段）
-3. **资产**：`ls ~/render_libs` + `ls ~/.cache/libero/assets` + `ls /home/ma-user/work/paligemma3b_hf/tokenizer.json`
-4. **ckpt**：`/home/ma-user/work/lerobot_pi05_libero_official/`（官方便样，9.35GB，config.json 已改 compile_model=False、policy_preprocessor.json 已指本地 tokenizer）
+2. **源码**：`ls $LEROBOT_PI05_ROOT/src` 确认在（含 F6 修复：configuration_pi05.py 的 use_peft 字段）
+3. **资产**：`ls ~/render_libs` + `ls ~/.cache/libero/assets` + `ls $PALIGEMMA_ROOT/tokenizer.json`
+4. **ckpt**：`$PI05_OFFICIAL_CKPT_ROOT/`（官方便样，9.35GB，config.json 已改 compile_model=False、policy_preprocessor.json 已指本地 tokenizer）
 5. **server 是否在跑**：`pgrep -f server_v2.py`（在跑先 pkill 释放 HBM）
 6. **后台任务环境**：任何 nohup/setsid 的 NPU 任务，启动脚本必须先 `source ~/.bashrc`
 
@@ -985,9 +985,9 @@ bash /tmp/run_pi05_baseline.sh  # 或按其内容手动跑
 
 - **论文 vs 后续官方复现**：π0.5 原论文 [arXiv:2504.16054](https://arxiv.org/abs/2504.16054) 的摘要与实验重点是开放世界真实机器人泛化；本次核对未找到论文直接报告 LIBERO 四套件分数。openpi 官方仓库的 `pi05_libero` 后续示例/权重是四套件参考来源，记录为 spatial 98.8%、object 98.2%、goal 98.0%、LIBERO-10 92.4%，平均 96.85%；LeRobot π0.5 文档另记录其复现为 97.0%、99.0%、98.0%、96.0%，平均 97.5%。两者均与论文数值分开标注。
 - **LIBERO 协议**：LIBERO 原始论文定义 spatial/object/goal 三个 10-task suite 与 LIBERO-100；当前社区 VLA 对照通常将第四套件写作 LIBERO-10/`libero_10`。本项目本轮可执行协议为每 task 10 episodes、`init_seed=42`、suite horizon spatial/object/goal/long = 220/280/300/520，并逐 episode 保存并解码核验视频；这属于本地缩减复现，不等同论文/官方 50 trials/task、多 seed 统计。
-- **checkpoint 覆盖性**：当前可读权重 `/home/ma-user/work/lerobot_pi05_libero_official` 是单一 `pi05-libero` 目录，已有 `model.safetensors`、config 与 processor/norm stats；未发现四个 suite 独立 checkpoint 证据，因此编排器不假设按 suite 换权重。当前实际加载路径如实记录，不把 `jade_choghari/pi05-t5` 冒称为论文官方权重；项目历史已记录两者文件同源核验和版本兼容修复。
+- **checkpoint 覆盖性**：当前可读权重 `$PI05_OFFICIAL_CKPT_ROOT` 是单一 `pi05-libero` 目录，已有 `model.safetensors`、config 与 processor/norm stats；未发现四个 suite 独立 checkpoint 证据，因此编排器不假设按 suite 换权重。当前实际加载路径如实记录，不把 `jade_choghari/pi05-t5` 冒称为论文官方权重；项目历史已记录两者文件同源核验和版本兼容修复。
 - **最小编排**：新增 `scripts/pi05/run_pi05_full_libero.sh`，固定 `npu:0`/fp32、显式 CANN 环境、单一 checkpoint、四个 suite 顺序运行；每 suite 使用独立端口和唯一输出根目录，保留 manifest、日志、partial/final JSON 与逐 episode 视频，不清理旧结果。该脚本不复用当前 8012 活跃端口。
-- **运行状态**：未启动新四 suite 评测。原因是当前 NPU0 仍由活跃 spatial run PID 2242249 使用，NPU1 也有现存 OpenVLA server 占用；并行启动会违反“不杀活跃评测/不 CPU/GPU 推理”约束。当前新 spatial run 仍以 NPU0 fp32 运行，partial JSON 已推进到 task0-8，不能据此宣称四 suite 完成。
+- **运行状态（历史快照）**：本条记录的是 2026-09-27 的启动前状态，不能代表当前项目状态。后续四 suite 评测已完成，最终原始统计为 spatial 96/100、object 100/100、goal 97/100、libero_10 93/100，合计 386/400；当前结果以 `results/pi05/full_libero/` 为准。
 - **证据 URL**：openpi 官方仓库 https://github.com/Physical-Intelligence/openpi；LeRobot π0.5 文档 https://huggingface.co/docs/lerobot/en/pi05；π0.5 论文 https://arxiv.org/abs/2504.16054；LIBERO 原始论文 https://www.cs.utexas.edu/~pstone/Papers/bib2html-links/liu_zhu_NeurIPS2023.pdf 。
 
 ## 六.20、2026-09-26 P4.29 输入构造五重缺陷定论 + 闭环 0% 终结（真根因收口）
@@ -1029,3 +1029,22 @@ bash /tmp/run_pi05_baseline.sh  # 或按其内容手动跑
   - 总耗时 10359.117s（172.65min，2.8775h，约103.59s/ep，含推理+仿真）
   - 结果文件：`results/pi05_spatial/spatial_results.json`（过程日志 `progress.log`）；历史 0% 证据归档 `results/pi05_spatial_pre_p429/`
 - 教训 #36/#37 入 PI05_RECORD.md
+
+
+## 四 suite 全量验证完成（2026-09-28）
+
+- 运行：`scripts/pi05/run_pi05_full_libero.sh`，NPU0 fp32（`--no-bf16`），seed 42，10 task x 10 ep/suite，horizon 220/280/300/520，逐 episode 强制视频输出+解码核验。
+- run 目录：`results/pi05/full_libero/20260927_214309_3556587/`（manifest + 每 suite 独立 server/eval 日志、结果 JSON、400 段视频）。
+- 结果（NPU 原始统计）：
+
+| suite | 成功率 | 每 task | 耗时 |
+|---|---|---|---|
+| libero_spatial | 96.0%（96/100） | t5=70%，t9=90%，其余 100% | 169 min |
+| libero_object | 100.0%（100/100） | 全部 100% | 133 min |
+| libero_goal | 97.0%（97/100） | t2=80%，t5=90%，其余 100% | 153 min |
+| libero_10 | 93.0%（93/100） | t5/t6/t7=90%，t8=60%，其余 100% | 261 min |
+| **总平均** | **96.5%（386/400）** | | 总计约 12 h |
+
+- 视频核验：400/400 全部通过解码核验（帧数、帧尺寸、非静态检查）。
+- 外部参考（与本项目统计分开）：openpi `pi05_libero` 参考 98.8/98.2/98.0/92.4，LeRobot 复现 97.0/99.0/98.0/96.0；本项目 96/100/97/93 与之同量级，协议为 10 ep/task 缩减复现，不作"统计等价"断言。
+- 过程修复：编排器与 eval 脚本参数不匹配（eval 内建 server 生命周期管理，编排器改为传 `--server_cmd`/`--ckpt` 并删除不存在的 `--video_dir`）。

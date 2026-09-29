@@ -35,10 +35,17 @@ results/*.log
 logs/
 /tmp/
 
-# 验证产物（视频体积大，只保留 results.json）
+# 验证产物：原始闭环结果、视频和进程信息留在本地，仅发布脱敏汇总
 results/**/*.mp4
 results/*.mp4
 *.mp4
+results/g05/full_libero/
+results/g05/smoke_*/
+results/g05/smoke_parallel/
+results/pi05/full_libero/
+results/pi05/20*/
+results/**/server.pid
+results/**/server.port
 
 # 大模型权重 / checkpoints
 *.bin

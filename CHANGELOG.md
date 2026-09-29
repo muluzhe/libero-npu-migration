@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Dates are local time. F
 
 ## [Unreleased]
 
+### Documentation audit (2026-09-29)
+- Rewrote the root README as the current entry point, including the project file map, model-specific run paths, evidence boundaries, and current X-VLA/OpenVLA/PI0.5/G0.5 status.
+- Recorded PI0.5 final four-suite results (386/400) and G0.5 final four-suite results (1977/2000), including the stated video verification scope.
+- Marked PI0.5 and G0.5 historical progress sections as snapshots where earlier “in progress” states no longer describe the current result.
+- Removed personal author metadata and local absolute paths from the edited release guidance; softened privacy checks so they require a fresh scan rather than claiming an absolute guarantee.
+
 ### Documentation audit (2026-09-27)
 - Corrected current model summaries from the raw JSON/log evidence: X-VLA suite average 95.75%; OpenVLA full results spatial/goal/object/libero_10 = 77/79/75/57%; PI0.5 spatial 96/100 with task5 70%, task8 100%, task9 90%.
 - Corrected PI0.5 elapsed time to 10359s = 172.65min = 2.8775h (about 103.59s/episode); separated raw statistics from paper references and marked unverified references as pending verification.

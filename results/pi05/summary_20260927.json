@@ -1,0 +1,94 @@
+{
+  "model": "pi0.5",
+  "source": {
+    "raw_results_dir": "full_libero/20260927_214309_3556587",
+    "result_file_pattern": "<suite>/<run>/spatial_results.json",
+    "videos_uploaded": false
+  },
+  "manifest": {
+    "seed": 42,
+    "trials_per_task": 10,
+    "horizons": {
+      "libero_spatial": 220,
+      "libero_object": 280,
+      "libero_goal": 300,
+      "libero_10": 520
+    },
+    "dtype": "float32",
+    "device": "npu:0"
+  },
+  "suites": {
+    "libero_spatial": {
+      "successes": 96,
+      "total": 100,
+      "tasks": [
+        {"task_id": 0, "successes": 10, "total": 10},
+        {"task_id": 1, "successes": 10, "total": 10},
+        {"task_id": 2, "successes": 10, "total": 10},
+        {"task_id": 3, "successes": 10, "total": 10},
+        {"task_id": 4, "successes": 10, "total": 10},
+        {"task_id": 5, "successes": 7, "total": 10},
+        {"task_id": 6, "successes": 10, "total": 10},
+        {"task_id": 7, "successes": 10, "total": 10},
+        {"task_id": 8, "successes": 10, "total": 10},
+        {"task_id": 9, "successes": 9, "total": 10}
+      ]
+    },
+    "libero_object": {
+      "successes": 100,
+      "total": 100,
+      "tasks": [
+        {"task_id": 0, "successes": 10, "total": 10},
+        {"task_id": 1, "successes": 10, "total": 10},
+        {"task_id": 2, "successes": 10, "total": 10},
+        {"task_id": 3, "successes": 10, "total": 10},
+        {"task_id": 4, "successes": 10, "total": 10},
+        {"task_id": 5, "successes": 10, "total": 10},
+        {"task_id": 6, "successes": 10, "total": 10},
+        {"task_id": 7, "successes": 10, "total": 10},
+        {"task_id": 8, "successes": 10, "total": 10},
+        {"task_id": 9, "successes": 10, "total": 10}
+      ]
+    },
+    "libero_goal": {
+      "successes": 97,
+      "total": 100,
+      "tasks": [
+        {"task_id": 0, "successes": 10, "total": 10},
+        {"task_id": 1, "successes": 10, "total": 10},
+        {"task_id": 2, "successes": 8, "total": 10},
+        {"task_id": 3, "successes": 10, "total": 10},
+        {"task_id": 4, "successes": 10, "total": 10},
+        {"task_id": 5, "successes": 9, "total": 10},
+        {"task_id": 6, "successes": 10, "total": 10},
+        {"task_id": 7, "successes": 10, "total": 10},
+        {"task_id": 8, "successes": 10, "total": 10},
+        {"task_id": 9, "successes": 10, "total": 10}
+      ]
+    },
+    "libero_10": {
+      "successes": 93,
+      "total": 100,
+      "tasks": [
+        {"task_id": 0, "successes": 10, "total": 10},
+        {"task_id": 1, "successes": 10, "total": 10},
+        {"task_id": 2, "successes": 10, "total": 10},
+        {"task_id": 3, "successes": 10, "total": 10},
+        {"task_id": 4, "successes": 10, "total": 10},
+        {"task_id": 5, "successes": 9, "total": 10},
+        {"task_id": 6, "successes": 9, "total": 10},
+        {"task_id": 7, "successes": 9, "total": 10},
+        {"task_id": 8, "successes": 6, "total": 10},
+        {"task_id": 9, "successes": 10, "total": 10}
+      ]
+    }
+  },
+  "overall": {"successes": 386, "total": 400},
+  "video_evidence": {
+    "local_video_count": 400,
+    "episode_metadata_verified": 400,
+    "episode_metadata_positive_decoded_frames": 400,
+    "full_episode_decoding_checked": 400,
+    "provenance": "Local full-episode video decode audit recorded in results/README.md; video media are not uploaded."
+  }
+}

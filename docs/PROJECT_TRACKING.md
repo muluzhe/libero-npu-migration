@@ -1,6 +1,6 @@
 # LIBERO 仿真验证 NPU 迁移 — 项目追踪文档
 
-> **最新纠正（2026-09-27）**：本文保留原文历史过程；当前口径以文末“阶段 20：文档证据审计与最新纠正”为准。X-VLA 原始四套件统计为 90% / 99% / 100% / 94%，平均 95.75%；OpenVLA 四 suite JSON 为 77/79/75/57；PI0.5 旧 spatial run 为 96/100，当前新 spatial run 正在 NPU0 fp32 上进行。视频按实际运行产物记录，X/OpenVLA 视频暂不展开。
+> **最新纠正（2026-09-29）**：本文保留原文历史过程；当前口径以阶段 23 为准。X-VLA 原始四套件统计为 90% / 99% / 100% / 94%，平均 95.75%；OpenVLA 四 suite JSON 为 77/79/75/57；PI0.5 四 suite 缩减协议为 96/100/97/93，总计 386/400（96.5%）；G0.5 官方 50 trials/task 全量为 496/500、500/500、490/500、491/500，总计 1977/2000（98.85%，按一位小数 98.9%）。视频按实际运行产物记录；G0.5 四 suite 共 2000/2000 个非空 MP4 的流、正时长与首帧解码通过，12/12 段抽样多帧解码通过；未对每部视频完整逐帧解码。
 >
 > 本文档实时记录项目进展、阶段总结、问题与解决方法。后续所有项目进展都记录在此。
 > 最后更新：2026-09-27
@@ -903,5 +903,27 @@ for s in ['libero_spatial','libero_goal','libero_object','libero_10']:
 - **NPU 与视频限制**：日志包含 Ascend/torch_npu 运行证据；视频按实际 episode 运行产物记录，X/OpenVLA 视频暂不展开。
 - **论文参考限制**：论文/官方参考值与本项目原始统计分开；未核实来源标为待核实，不作“所有模型论文协议完全对齐”“同大小逐字节一致”“2sigma 内达标”“统计等价”或“差距完全归因渲染”等绝对结论。
 - **PI0.5 范围限制**：当前证据只支持 spatial；旧 run 已完成 96/100，新 run `results/pi05/20260927_104705_120708_2242249/` 正在 NPU0 fp32 上进行，当前已推进到 task0-8（partial JSON 的 `tasks_done=9`，全局 90/100），不能写成新 run 已完成或 PI0.5 全四 suite 完成。
-- **PI0.5 四 suite 证据与编排（2026-09-27）**：π0.5 原论文 [arXiv:2504.16054](https://arxiv.org/abs/2504.16054) 未直接报告 LIBERO 四 suite 分数；openpi 后续 `pi05_libero` 参考为 98.8/98.2/98.0/92.4，LeRobot 后续复现为 97.0/99.0/98.0/96.0。LIBERO 原始论文定义四套件；本地运行采用 10 ep/task、seed42、horizon 220/280/300/520，属于缩减复现。`/home/ma-user/work/lerobot_pi05_libero_official` 是当前唯一可读 checkpoint，未发现 suite 独立权重证据。新增 `scripts/pi05/run_pi05_full_libero.sh`：固定 NPU0/fp32、同一 checkpoint、独立端口/唯一目录、manifest 与逐 episode 视频核验；因 NPU0 活跃 spatial、NPU1 现有 OpenVLA 占用，暂不启动，不伪造全量完成。
-- **G0.5 官方资料研究（2026-09-27）**：新增 [`docs/g05/G05_TRACKING.md`](g05/G05_TRACKING.md)。已只读核对官方项目页、OpenGalaxea/GalaxeaVLA、G0.5 HF model card、LIBERO README/评测脚本、配置与许可证入口：确认正式名称、Qwen3.5-2B 自回归架构、`g05-libero/model.pt` 与四 suite 入口，以及默认 50 trials/task、horizon 220/280/300/520。HF `g05-libero` 文件页当前要求登录并同意共享联系信息，CUDA 12.8/原生 CUDA 扩展要求也尚未有 NPU 后端证据；本次未下载权重、未启动 G0.5 评测，不能声称已完成全量 NPU 验证。
+- **PI0.5 四 suite 证据与编排（2026-09-27）**：π0.5 原论文 [arXiv:2504.16054](https://arxiv.org/abs/2504.16054) 未直接报告 LIBERO 四 suite 分数；openpi 后续 `pi05_libero` 参考为 98.8/98.2/98.0/92.4，LeRobot 后续复现为 97.0/99.0/98.0/96.0。LIBERO 原始论文定义四套件；本地运行采用 10 ep/task、seed42、horizon 220/280/300/520，属于缩减复现。`$HOME/work/lerobot_pi05_libero_official` 是当时唯一可读 checkpoint，未发现 suite 独立权重证据。新增 `scripts/pi05/run_pi05_full_libero.sh`：固定 NPU0/fp32、同一 checkpoint、独立端口/唯一目录、manifest 与逐 episode 视频核验；因 NPU0 活跃 spatial、NPU1 现有 OpenVLA 占用，暂不启动，不伪造全量完成。
+- **G0.5 官方资料研究（2026-09-27）**：新增 [`docs/g05/G05_TRACKING.md`](g05/G05_TRACKING.md)。已只读核对官方项目页、OpenGalaxea/GalaxeaVLA、G0.5 HF model card、LIBERO README/评测脚本、配置与许可证入口：确认正式名称、Qwen3.5-2B 自回归架构、`g05-libero/model.pt` 与四 suite 入口，以及默认 50 trials/task、horizon 220/280/300/520。HF `g05-libero` 文件页当前要求登录并同意共享联系信息，CUDA 12.8/原生 CUDA 扩展要求也尚未有 NPU 后端证据；本段保留当时的研究状态记录。
+
+## 阶段 21：PI0.5 四 suite 全量验证完成（2026-09-28）
+
+- 编排器 `scripts/pi05/run_pi05_full_libero.sh` 修复参数不匹配后，在 NPU0 fp32 上完成四 suite 串行全量：spatial 96/100、object 100/100、goal 97/100、libero_10 93/100，总平均 96.5%（386/400），seed 42，horizon 220/280/300/520。
+- 400 段视频全部生成并通过解码核验；结果与日志在 `results/pi05/full_libero/20260927_214309_3556587/`。
+- 本项目为 10 ep/task 缩减复现，不作统计等价断言。
+
+## 阶段 22：G0.5 NPU 迁移执行（2026-09-28，历史过程记录）
+
+- **权重解锁**：`OpenGalaxea/G05` 为 gated 仓库，匿名 hf-mirror 403；完成必要授权后经 hf-mirror 下载 `g05-libero` bundle（model.pt 11,440,381,065 bytes 与 HF 元数据一致）及 sidecar，按官方 README 软链组装。
+- **环境**：conda env `g05`（Python 3.10.20、torch 2.7.1+cpu、torch_npu 2.7.1.post2、transformers 4.57.1），CUDA 原生扩展未安装，推理链路走纯 PyTorch/SDPA 回退。
+- **NPU 算子修复**：视觉 patch 化 9 维 reshape+permute 触发 EZ1001，分解为等价不超过 8 维链并逐位验证。
+- **冒烟**：单环境 task0 1/1 SUCCESS，并行 task0 5/5。
+- **全量启动**：`scripts/g05/run_g05_full_libero.sh` 对齐官方协议运行，官方 98.9% 仅作参考，本项目 NPU fp32 结果与其分开记录。
+
+## 阶段 23：G0.5 四套件全量结果（2026-09-29）
+
+- 运行目录：`results/g05/full_libero/20260928_122503_1236126/`；seed 42、fp32、50 trials/task、num_parallel 10、action_steps 10、chunk10，horizon 为 220/280/300/520。
+- 原始统计：spatial 496/500（99.2%）、object 500/500（100.0%）、goal 490/500（98.0%）、libero_10 491/500（98.2%）；合计 1977/2000（98.85%，按一位小数 98.9%）。每 suite JSON 均为 10 tasks x 50 trials。
+- `server.log` 记录 `loaded on npu:0` 和 `client connected`；末尾有 TBE task_distribute main process disappeared 与 resource_tracker 30 leaked semaphore 收尾提示，结果均已保存。
+- 独立只读视频核验：四个 suite 各 500 个非空 MP4，共 2000/2000；`ffprobe` 视频流与正时长全部合格，`ffmpeg` 对每个 MP4 实际解码首帧均成功；每 suite 抽首/中/尾三段多帧解码成功，共 12/12。MP4 文件名 success/failure 尾缀按 suite 与原始 JSON 完全一致：spatial 496/4、object 500/0、goal 490/10、libero_10 491/9，合计成功 1977/2000（98.85%）。未对每部视频完整逐帧解码，不能声称所有帧均已核验。
+- 官方 98.9% 仅作为参考；其 CUDA bf16 配置与本项目 NPU fp32 + 纯 PyTorch 回退不同，不作统计等价或配置等价断言。

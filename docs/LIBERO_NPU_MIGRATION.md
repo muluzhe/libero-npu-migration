@@ -1,11 +1,11 @@
 # LIBERO NPU 迁移项目说明文档（总结文档）
 
 > **项目目标**: 将 VLA（Vision-Language-Action）模型在 Ascend 910B4 NPU 上完成 LIBERO 仿真闭环验证
-> **启动时间**: 2026-07-02 ｜ **最后更新**: 2026-09-26（下午 P4.29）
+> **启动时间**: 2026-07-02 ｜ **最后更新**: 2026-09-29
 > **硬件**: Ascend 910B4 NPU ×2（bf16 原生推理，OSMesa 软件渲染，无 GPU）
-> **最新纠正（2026-09-27）**：本文当前摘要以原始 JSON 和日志为准。X-VLA 四套件为 90% / 99% / 100% / 94%，平均 95.75%；OpenVLA 四套件为 spatial/goal/object/libero_10 = 77/79/75/57；PI0.5 旧 spatial run 为 96/100，当前新 spatial run 正在 NPU0 fp32 上进行。论文参考值待核实，不把结果表述为协议完全对齐或统计等价。视频按实际 episode 运行产物记录，X/OpenVLA 视频暂不展开。
+> **最新纠正（2026-09-29）**：本文当前摘要以原始 JSON 和日志为准。X-VLA 四套件为 90% / 99% / 100% / 94%，平均 95.75%；OpenVLA 四套件为 spatial/goal/object/libero_10 = 77/79/75/57；PI0.5 四 suite 缩减协议为 96/100/97/93，总计 386/400（96.5%）；G0.5 官方 50 trials/task 全量为 496/500、500/500、490/500、491/500，总计 1977/2000（98.85%，按一位小数 98.9%）。论文参考值与本项目原始统计分开记录，不把结果表述为协议完全对齐或统计等价。G0.5 四 suite 共 2000/2000 个非空 MP4 已通过视频流、正时长和逐段首帧解码核验，12/12 段抽样多帧解码通过；未对每部视频完整逐帧解码。
 >
-> **状态**: X-VLA 与 OpenVLA 已有上述原始统计；PI0.5 旧 spatial run 有 JSON/log 证据，新 spatial run 正在进行并按 episode 保存视频。
+> **状态**: X-VLA、OpenVLA、PI0.5 与 G0.5 均有对应原始结果记录；PI0.5 四套件缩减协议为 386/400，G0.5 官方 50 trials/task 全量为 1977/2000。G0.5 四个视频目录各有 500 个非空 MP4，`ffprobe` 视频流/正时长和 `ffmpeg` 逐段首帧解码均合格；抽样多帧解码 12/12 通过，未对每部视频完整逐帧解码。本文后续 PI0.5/G0.5 过程章节保留历史快照，当前结果以顶部摘要和 `results/` 原始产物为准。
 
 ---
 
@@ -32,7 +32,8 @@
 |---|---|---|---|---|---|
 | **X-VLA** | 绝对 action（EEF-6D） | ✅ fp32+eager | 已记录四套件原始统计：90% / 99% / 100% / 94%，平均95.75% | 论文参考待核实 | 已记录 |
 | **OpenVLA** | delta action（EEF-7D） | ✅ bf16+sdpa | 已记录 spatial/goal/object/libero_10：77/79/75/57（各100 rollouts） | 论文/官方参考值待核实 | 已有四 suite JSON；视频证据仅 object 独立复验 |
-| **PI0.5** | delta action chunk（EEF-7D × chunk） | ✅ fp32 | 旧 run 已记录 spatial 96/100；新 run 正在 NPU0 fp32 进行，当前 4/100（task0 4/10，4/4 成功） | 论文/官方参考值待核实 | 旧 run 有 spatial JSON/log；新 run 进行中 |
+| **PI0.5** | delta action chunk（EEF-7D × chunk） | ✅ fp32 | 四 suite 缩减协议：spatial/object/goal/libero_10 = 96/100/97/93，总计 386/400（96.5%） | 论文/官方参考值待核实 | 已完成，10 ep/task |
+| **G0.5** | ActionCodec 20D action chunk | ✅ fp32 | 四 suite 官方全量：spatial/object/goal/libero_10 = 496/500、500/500、490/500、491/500，总计 1977/2000（98.85%） | 官方 98.9% CUDA bf16 参考；不作统计等价断言 | 已完成，50 trials/task |
 | SmolVLA / ACT / Diffusion Policy | 各异 | 骨架 server | 未实测 | — | ⏳ 待验证 |
 
 ---
@@ -336,7 +337,8 @@ results/<model>/videos/<suite>/
 **已验证**：
 - **X-VLA**: 四套件原始统计为 90% / 99% / 100% / 94%，平均 95.75%；历史多 seed 记录需结合相同 init_seed 的限制解读
 - **OpenVLA**: spatial/goal/object/libero_10 原始统计分别为 77/79/75/57（各100 rollouts）；视频证据仅有 object 独立复验 5/10
-- **PI0.5**: 旧 spatial run 原始统计 96/100；新 NPU0 fp32 spatial run 当前完成 4/100（task0 4/10，4/4 成功），仍在进行；输入构造缺陷及修复过程见 P4.29，外部参考值和协议来源待核实
+- **PI0.5**: 四 suite 缩减协议原始统计为 spatial/object/goal/libero_10 = 96/100、100/100、97/100、93/100，总计 386/400（96.5%）；输入构造缺陷及修复过程见 P4.29，外部参考值和协议来源待核实
+- **G0.5**: 官方 50 trials/task 全量原始统计为 spatial/object/goal/libero_10 = 496/500、500/500、490/500、491/500，总计 1977/2000（98.85%，按一位小数 98.9%）；运行目录为 `results/g05/full_libero/20260928_122503_1236126/`。server 日志含 NPU 加载与客户端连接记录；独立只读核验确认四 suite 各 500 个非空 MP4（2000/2000），`ffprobe` 视频流/正时长全部合格，`ffmpeg` 对每段视频解码首帧均成功；每 suite 抽首/中/尾三段多帧解码共 12/12 成功。MP4 success/failure 文件名尾缀与原始 JSON 数量完全一致：spatial 496/4、object 500/0、goal 490/10、libero_10 491/9，合计 1977/2000（98.85%）。未对每部视频完整逐帧解码；`server.log` 末尾有 task_distribute main process disappeared 与 resource_tracker 30 leaked semaphore 收尾警告，结果均已保存。官方 98.9% 为 CUDA bf16 参考，本项目为 NPU fp32 + 纯 PyTorch 回退，不作统计等价断言。
 
 **核心技术资产**：
 1. OSMesa 软件渲染方案（无 GPU 跑通 LIBERO 闭环，含 GL 坐标修复）

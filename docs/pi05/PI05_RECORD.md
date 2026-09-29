@@ -3,7 +3,7 @@
 > **用途**: 记录 pi0.5 在 NPU 上做 LIBERO 仿真验证过程中遇到的问题与解决方法，供后续参考  
 > **配套追踪文档**: `docs/pi05/PI05_TRACKING.md`  
 > **创建时间**: 2026-07-20  
-> **最新纠正（2026-09-27）**：本文保留历史过程记录。旧 run `results/pi05/spatial_100ep_2026-09-26/spatial_results.json` 与 `progress.log` 记录 spatial 96/100，task5 70%、task8 100%、task9 90%，总耗时 10359s（172.65min，2.8775h，约103.59s/ep）。新 run `results/pi05/20260927_104705_120708_2242249/` 正在 NPU0 fp32 上进行，当前 task0 已完成 4/10、全局 4/100，4/4 成功，已保存 4 个 episode 视频；不写完成结论。
+> **历史快照说明（2026-09-29）**：本文主体保留 PI0.5 的问题与根因演进记录，顶部及早期条目中的旧 run、旧假设和“未完成”状态均按记录时点理解。当前四套件最终原始统计为 spatial 96/100、object 100/100、goal 97/100、libero_10 93/100，合计 386/400（96.5%）；最终产物索引见 `results/pi05/full_libero/`。
 >
 > **最后更新**: 2026-09-27
 
@@ -13,7 +13,7 @@
 
 ### P1.1 torch_npu 2.5.1.post1 wheel 在 gitcode 需认证（401）
 - **根因**: cann-recipes 验证过的 torch_npu 2.5.1.post1 在 gitcode.com/Ascend/pytorch 的 release 需登录 token，HF 直连也被代理阻断
-- **解决**: 改用 torch 2.7.1 + torch_npu 2.7.1.post2（modelarts 私有源 `pip.modelarts.private.com:8888`，与 PyTorch-2.7.1 env 一致，NPU 已验证可跑）
+- **解决**: 改用 torch 2.7.1 + torch_npu 2.7.1.post2（受限 Python 软件源，与 PyTorch-2.7.1 env 一致，NPU 已验证可跑）
 - **状态**: ✅ 已解决
 
 ### P1.2 lerobot fc296548 pi0.5 要 transformers 的 `fix/lerobot_openpi` 分支版
@@ -55,7 +55,7 @@
 
 ### P2.3 policy_preprocessor.json 的 tokenizer_name 离线找不到 paligemma
 - **根因**: HF 离线模式解析 `google/paligemma-3b-pt-224` 要 refs/main 指向真实 commit hash，snapshots/<hash>/ 文件；modelscope 用 master 不是 hash，transformers 离线解析失败
-- **解决**: 把 `policy_preprocessor.json` 的 `tokenizer_name` 改为本地平铺路径 `/home/ma-user/work/paligemma3b_hf`（绕 HF 离线 gated repo 限制）
+- **解决**: 把 `policy_preprocessor.json` 的 `tokenizer_name` 改为本地平铺路径 `$PALIGEMMA_ROOT`（绕 HF 离线 gated repo 限制）
 - **状态**: ✅ 已解决
 
 ### P2.4 `compile_model=true` + `compile_mode=max-autotune` 触发 torch dynamo 编译报 torch_mlir 缺
@@ -139,7 +139,7 @@
 
 ### P4.6 lerobot-pi05 conda env 被外部清理（2026-07-21 发现，2026-07-21 修正描述）
 - **根因**: 服务器 conda env 被外部清理（与 PROJECT_TRACKING #8 同类型风险再次发生），`conda env list` 只剩 base/PyTorch-2.7.1/python-3.12.0
-- **修正首判**: 不光 env 被清，`/home/ma-user/work/lerobot_pi05/` editable install 源码目录**仍在**（commit fc296548 完整，含 src/lerobot/policies/pi05/、envs/libero.py、factory.py）——首判误扩为"源码也丢"，2026-07-21 21:30 精准确认源码无损
+- **修正首判**: 不光 env 被清，`$LEROBOT_PI05_ROOT/` editable install 源码目录**仍在**（commit fc296548 完整，含 src/lerobot/policies/pi05/、envs/libero.py、factory.py）——首判误扩为"源码也丢"，2026-07-21 21:30 精准确认源码无损
 - **影响**: 不能直接复跑验证，需先 `conda create -n lerobot-pi05 python=3.10` + 重装依赖 + lerobot editable reinstall（源码已就位，无需重 clone）
 - **解决**: 按 PI05_TRACKING 阶段2 重建（torch 2.7.1 + torch_npu 2.7.1.post2 + lerobot fc296548 editable + transformers fix/lerobot_openpi 分支 + 各依赖）。源码目录就绪，重建成本较首建低
 - **状态**: ⏳ 待重建（仅 env，源码就绪）
@@ -290,14 +290,14 @@
 ### P4.18 模型真伪 + 推理链路 + 闭环流程三方面精查（2026-07-23 定论）
 
 - **触发**: 用户要求先验证 pi0.5 模型真伪 + libero 仿真流程与 X-VLA 是否一致，再谈剩余根因
-- **方面 1 模型真伪**: ✅ **是真 pi0.5 flow matching 架构**——`action_expert_variant: gemma_300m` + `chunk_size: 50` + `n_action_steps: 10` 与 lerobot_pi05 `configuration_pi05.py:36` 官方基准完全一致；源码注释明示 "see openpi"（PaliGemmaWithExpertModel + Gemma + flow matching），是 OpenPI 官方 pi0.5 架构的 lerobot 复刻。但 ckpt 来自 `jade_choghari/pi05-t5` 个人 repo 微调版（`pretrained_path="lerobot/pi05_libero_finetuned"` + `job_name="libero_training_fast"` + `dataset.root="/fsx/jade_choghari/data/libero"` AWS SageMaker 训练），**无 trainer_state.json** 无训练 loss 收敛记录
+- **方面 1 模型真伪**: ✅ **是真 pi0.5 flow matching 架构**——`action_expert_variant: gemma_300m` + `chunk_size: 50` + `n_action_steps: 10` 与 lerobot_pi05 `configuration_pi05.py:36` 官方基准完全一致；源码注释明示 "see openpi"（PaliGemmaWithExpertModel + Gemma + flow matching），是 OpenPI 官方 pi0.5 架构的 lerobot 复刻。但 ckpt 来自 `上游微调仓库/pi05-t5` 个人 repo 微调版（`pretrained_path="lerobot/pi05_libero_finetuned"` + `job_name="libero_training_fast"` + `dataset.root="/fsx/jade_choghari/data/libero"` AWS SageMaker 训练），**无 trainer_state.json** 无训练 loss 收敛记录
 - **方面 2 推理链路**: ✅ **一致**——server `preprocess→predict_action_chunk→postprocess` 与 X-VLA 官方同链路（#6 印 diff=0.156）；preprocessor norm_map `ACTION:MEAN_STD` 与 server 归一化对齐
 - **方面 3 闭环流程**: ⚠️ **存在两处不一致**——① X-VLA 官方便样 `use_delta=False` abs 模式，我们 eval 用 `act_type="rel"` rel 模式（abs 闭环验证仍 0% 说明非根因）；② **关键新发现**：X-VLA 官方便样 `npu_e2e_verify.py:146` `proprio[:9]=action_raw[-1,:9].copy()` **proprio 直接用 server 返的 chunk 末步 ori6d 覆盖**，我们 server P4.5 v2 末步 proprio 原值回传（chunk 末步 [:9]=proprio 原值）——ori6d convention 不一致
 - **abs 模式闭环验证**: 跑 `eval_pi05_task0.py --act_type abs` 1 episode → **success=0.0 耗时 244.8s 仍 0%**，abs 模式 proprio 每步也不变（末步[:9]=`[-0.211,...]`每步相同）。**定论**：abs vs rel 流程不一致**不是根因**——两种模式闭环均 0% 且机器人都没真动
 - **根因定论收敛**: 模型架构真 + 推理链路一致 + abs/rel 流程不一致但均 0%（非根因）→ **真根因仍是模型推理本身输出错方向**（每 chunk 首步 delta_pos 朝固定负 z，#18 已定论）。**新线索**：ckpt 是个人微调版无训练 loss 收敛记录，需后续查微调模型训练质量是否根因
 - **状态**: ✅ 三方面精查完整定论
 
-23. **"模型推理输出错方向"根因下应查 ckpt 训练质量是否根因**（2026-07-23 P4.18 印证）：三方面精查定论模型架构真 + 推理链路一致 + abs/rel 流程不一致非根因后，真根因仍是模型推理本身输出错方向。但发现 ckpt 来自 `jade_choghari/pi05-t5` 个人 repo 微调版（AWS SageMaker 训练），**无 trainer_state.json** 无训练 loss 收敛记录。教训：**当根因收敛到"模型推理本身"时，必须查 ckpt 训练质量**（loss 是否收敛 / 训练数据 convention 是否对齐 / 微调基模型是否正确），不能止步于"架构真推理链路一致"就判模型本身根因——**架构真≠训练成功**，个人微调版 ckpt 可能训练失败导致推理输出错方向，这是比"NPU 算子差异"更基础的根因方向。
+23. **"模型推理输出错方向"根因下应查 ckpt 训练质量是否根因**（2026-07-23 P4.18 印证）：三方面精查定论模型架构真 + 推理链路一致 + abs/rel 流程不一致非根因后，真根因仍是模型推理本身输出错方向。但发现 ckpt 来自 `上游微调仓库/pi05-t5` 个人 repo 微调版（AWS SageMaker 训练），**无 trainer_state.json** 无训练 loss 收敛记录。教训：**当根因收敛到"模型推理本身"时，必须查 ckpt 训练质量**（loss 是否收敛 / 训练数据 convention 是否对齐 / 微调基模型是否正确），不能止步于"架构真推理链路一致"就判模型本身根因——**架构真≠训练成功**，个人微调版 ckpt 可能训练失败导致推理输出错方向，这是比"NPU 算子差异"更基础的根因方向。
 
 ---
 
@@ -305,13 +305,13 @@
 
 - **触发**: 教训 #23 印证"架构真≠训练成功"，查 ckpt 训练质量是否根因
 - **对比铁证**:
-  - 我们 ckpt：`repo_id="jade_choghari/pi05-t5"`（个人 AWS SageMaker 微调）+ `pretrained_path="lerobot/pi05_libero_finetuned"` + `job_name="libero_training_fast"` + `output_dir="/fsx/jade_choghari/outputs/..."` + **无 trainer_state.json**
+  - 我们 ckpt：`repo_id="上游微调仓库/pi05-t5"`（个人 AWS SageMaker 微调）+ `pretrained_path="lerobot/pi05_libero_finetuned"` + `job_name="libero_training_fast"` + `output_dir="<TRAINING_OUTPUT_ROOT>/..."` + **无 trainer_state.json**
   - 官方便样基准：`lerobot/pi05-libero`（lerobot 官方 LIBERO 微调，4B safetensors 含 norm stats + processor，达 97.5%）
   - cann-recipes 官方便样：`modelscope.cn/models/lerobot/pi05_base.git` commit `d856522`（base 模型无 LIBERO 微调，只验证推理能跑通不验证闭环成功率）
 - **颠覆性定论**:
   1. PI05_TRACKING.md §4.2 冰示决策选 `lerobot/pi05-libero`，但**实际加载的 ckpt 是 `jade_choghari/pi05-t5`（个人微调版）不是官方便样**——**ckpt 来源错配是根因方向**！
   2. PROJECT_TRACKING.md:758 明示决策"改用 `lerobot/pi05-libero` 直接对比官方基准"，但**实际加载的是 jade_choghari/pi05-t5**，与决策不符
-  3. server_v2.py:354 `PI05Policy.from_pretrained(args.model_path)` + `run_pi05_spatial.sh:22` `--model_path /home/ma-user/work/pi05_libero_ckpt`——确认加载的是个人微调版不是官方便样
+  3. server_v2.py:354 `PI05Policy.from_pretrained(args.model_path)` + `run_pi05_spatial.sh:22` `--model_path $PI05_CKPT_ROOT`——确认加载的是个人微调版不是官方便样
   4. 量级差距印证：官方便样 96.85% / 97.5% vs 我们 0%，量级差距远超 NPU 精度差异范围，指向 ckpt 本身问题而非推理链路
 - **根因定论收敛**: 模型推理本身输出错方向（#18 定论）的根因可能是 **ckpt 来源错配**——加载了个人微调版（可能训练失败/数据 convention 错位）而非官方便样 ckpt
 - **下一步修复方向**: F5（下载 `lerobot/pi05-libero` 官方便样 ckpt 替换重跑闭环验证是否 >0%）/ H2（联系 jade_choghari 确认微调版训练质量或查 HF repo card）
@@ -355,11 +355,11 @@
 - **F6 实施步骤**:
   1. 加字段：`configuration_pi05.py:82` PI05Config "Finetuning settings" 段加 `use_peft: bool = False  # Whether to use PEFT (LoRA) adapters — added for ckpt config.json compatibility`
   2. 语法检查：`python3 -c "from lerobot.policies.pi05.configuration_pi05 import PI05Config; c=PI05Config(); print(c.use_peft)"` → `use_peft: False` 语法 OK
-  3. 加载验证：`PI05Policy.from_pretrained("/home/ma-user/work/lerobot_pi05_libero_official")` → `STEP4_load_OK_DecodingError解` + `All keys loaded successfully!` + `use_peft: False chunk: 50 n_act: 10`——**F6 修复真解了 DecodingError**
+  3. 加载验证：`PI05Policy.from_pretrained("$PI05_OFFICIAL_CKPT_ROOT")` → `STEP4_load_OK_DecodingError解` + `All keys loaded successfully!` + `use_peft: False chunk: 50 n_act: 10`——**F6 修复真解了 DecodingError**
   4. 闭环验证：跑 `eval_pi05_task0.py --act_type rel` 1 episode → **success=0.0 耗时 236.6s 仍 0%**
 - **F6 实施坑（环境变量 + tokenizer + compile 三连）**:
   - 坂 1：libhccl.so torch_npu 后端加载失败——setsid/nohup 子 shell 没继承完整 LD_LIBRARY_PATH，报 `ImportError: libhccl.so cannot open shared object file` + `RuntimeError: Failed to load backend extension: torch_npu`。解决：用 run_pi05_spatial.sh 基准脚本环境变量（当前 shell env 已验证 torch_npu OK）
-  - 坂 2：tokenizer 联网阻断——官方便样 ckpt processor 依赖 `google/paligemma-3b-pt-224` tokenizer（HF 离线模式找不到缓存报 `OSError: couldn't connect to huggingface.co`）。解决：把 `policy_preprocessor.json` 的 `tokenizer_name` 从 `google/paligemma-3b-pt-224` 改为本地 `/home/ma-user/work/paligemma3b_hf`（绕过 HF 联网，与我们 ckpt 同用本地路径）
+  - 坂 2：tokenizer 联网阻断——官方便样 ckpt processor 依赖 `google/paligemma-3b-pt-224` tokenizer（HF 离线模式找不到缓存报 `OSError: couldn't connect to huggingface.co`）。解决：把 `policy_preprocessor.json` 的 `tokenizer_name` 从 `google/paligemma-3b-pt-224` 改为本地 `$PALIGEMMA_ROOT`（绕过 HF 联网，与我们 ckpt 同用本地路径）
   - 坂 3：compile inductor 缺 torch_mlir——官方便样 ckpt `compile_model: True` 启用 torch.compile inductor backend，NPU 环境缺 torch_mlir 报 `ImportError: torch_mlir is not installed`。解决：把 `config.json` 的 `compile_model` 从 `True` 改为 `False`（与我们 ckpt 基准一致）
 - **F6 闭环验证结果——颠覆性定论**: 闭环仍 0%（success=0.0 耗时 236.6s），但推理链路跑通（`return chunk shape=(2,10)` + P4.8 ori6d fix perm+signs 转换 + P4.5 v2 fix 末步 proprio 原值回传全生效）。官方便样 ckpt chunk 首步 delta_pos 每步朝固定负 z 方向 `[-0.88~-0.80, +0.04~-0.01, -0.97~-0.90]`——与 #18 定论"模型推理本身输出错方向"完全一致。**定论**：源码版本不匹配**不是闭环 0% 真根因**——F6 修复让官方便样 ckpt 能加载且推理链路跑通，但闭环仍 0% 且 chunk 首步 delta_pos 朝固定负 z，真根因仍在模型推理本身（#18 定论未被推翻）
 - **根因定论彻底收敛**: 已推翻的根因方向：ckpt 来源错配（#3 铡证同源）/ 源码版本不匹配（F6 修复后仍 0%）/ abs vs rel 流程不一致（abs 闭环仍 0%）/ sign convention（方向 E 推翻）/ bf16 精度（float32 也错方向）/ chunk 累加飞出（F1 缩 chunk 后仍 0%）。**真根因仍是模型推理本身输出错方向**（#18 定论未被推翻）——官方便样 ckpt（与我们 ckpt 完全同源）在 F6 修复后推理仍返固定负 z 方向 delta_pos。**新铁证**：官方便样 ckpt（repo_id `jade_choghari/pi05-t5`，lerobot 团队上传到 `lerobot/pi05-libero` repo）推理返固定负 z 方向——说明不是"个人微调版训练失败"，是**官方便样 ckpt 本身在我们推理链路下输出错方向**
@@ -434,9 +434,9 @@
 
 - **触发**: #9 阻断后用户拍板"在 GPU 服务器开 HTTP 代理"——GPU 服务器已跑 `scripts/gpu_http_proxy.sh` 启动 HTTP 代理透 SSH（PID=4182，0.0.0.0:80→SSH 127.0.0.1:32222，RTX4090 24GB×2 验证可用），本机测连通性
 - **本机测 GPU 代理透 SSH 连通性**:
-  - curl --proxytunnel <GPU_IP>:80 透 SSH 32222：❌ `Connection timed out`（curl 直连 80 端口不可达）
-  - 代理白名单是否允许任意 IP 的 80 端口：❌ **拒所有外网 IP**——<GPU_IP>:80 / www.baidu.com:80 / 223.5.5.5:80 / 114.114.114.114:80 全 Establish HTTP proxy tunnel 后无 200 响应（curl --proxytunnel 多 IP 测试）
-- **阻断根因定论**: **ModelArts 代理白名单拒所有外网 IP 的 80 端口**——不是 SSH 端口问题，是**本机出站代理白名单拒所有外网 IP**（<GPU_IP>:80 同 www.baidu.com:80 等公网 IP 都不可达）。代理白名单只允许特定域名（华为云内网 myhuaweicloud.com 等），**任意外网 IP 的 80 端口都无法透出**。GPU HTTP 代理透 SSH 方案被代理白名单拒——<GPU_IP>:80 同样不可达
+  - curl --proxytunnel <GPU_ENDPOINT>:80 透 SSH 32222：❌ `Connection timed out`（curl 直连 80 端口不可达）
+  - 代理白名单是否允许任意 IP 的 80 端口：❌ **拒所有外网 IP**——<GPU_ENDPOINT>:80 / <TEST_ENDPOINT_1>:80 / <TEST_ENDPOINT_2>:80 / <TEST_ENDPOINT_3>:80 全 Establish HTTP proxy tunnel 后无 200 响应（curl --proxytunnel 多 IP 测试）
+- **阻断根因定论**: **受限环境代理白名单拒所有外网 IP 的 80 端口**——不是 SSH 端口问题，是**本机出站代理白名单拒所有外网 IP**（<GPU_ENDPOINT>:80 同 测试地址等公网 IP 都不可达）。代理白名单只允许特定域名（华为云内网 myhuaweicloud.com 等），**任意外网 IP 的 80 端口都无法透出**。GPU HTTP 代理透 SSH 方案被代理白名单拒——<GPU_ENDPOINT>:80 同样不可达
 - **方向 D/G 彻底阻断**: 本 NPU 服务器（华为云 ModelArts notebook）出站网络限制拒所有外网 IP，**SSH 直连 + HTTP 代理透 SSH 两路径均阻断**。方向 D/G（对比官方便样 ckpt GPU 推理输出方向 vs NPU 定论 NPU 算子是否根因）**彻底阻断**
 - **根因诊断线彻底收敛（9 阶段 + 2 GPU 阻断）**: 已推翻的根因方向（8 个）：ckpt 来源错配（#3 铑证同源）/ 源码版本不匹配（F6 修复后仍 0%）/ abs vs rel 流程不一致 / sign convention / bf16 精度 / chunk 累加飞出 / cann-recipes 官方便样脚本对比（合成图+不同 API）/ select_action vs predict_action_chunk API 差异（源码精读必然一致）。**真根因仍是模型推理本身输出错方向**（#18 定论未被推翻）——官方便样 ckpt（与我们 ckpt 完全同源）在 F6 修复后推理仍返固定负 z 方向 delta_pos。**剩余根因方向 D/G 彻底阻断**——本 NPU 服务器出站网络受限无法 ssh 连接 GPU 服务器对比 GPU 推理输出方向（SSH 直连 + HTTP 代理透 SSH 两路径均被代理白名单拒）
 - **状态**: ✅ GPU HTTP 代理透 SSH 方案阻断定论，方向 D/G 彻底阻断
@@ -489,4 +489,4 @@
 
 37. **"模型坏了"是最危险的定论，它阻断继续查输入**（2026-09-26 P4.29 印证）：P4.16 的"模型推理本身输出错方向"把诊断引向 GPU 对比与换 ckpt（方向 J/H），若 GPU 可达会"确证"错误定论（同一脚本同错）。教训：**在单端复现的异常行为上，"模型损坏"只能是排除性结论**——必须先穷尽"输入构造与训练管线逐字节一致"的证明（分布对照+敏感性测试），再谈模型/算子问题；双端对比只能证明"两端一致"，不能证明"输入正确"。
 
-38. **PI0.5 四 suite 证据分层与单 checkpoint 覆盖性（2026-09-27）**：π0.5 原论文 [arXiv:2504.16054](https://arxiv.org/abs/2504.16054) 未直接报告 LIBERO 四 suite 分数；openpi 后续 `pi05_libero` 参考为 98.8/98.2/98.0/92.4，LeRobot 后续复现为 97.0/99.0/98.0/96.0，均需与论文分开标注。当前 `/home/ma-user/work/lerobot_pi05_libero_official` 是单一可读 checkpoint，未发现按 suite 独立权重证据；新增四 suite 编排器固定使用同一 checkpoint、NPU0/fp32、每 episode 视频核验。严格 LIBERO 常见 50 trials/task、多 seed 与本地 10 ep/task、seed42 缩减复现不能混称。
+38. **PI0.5 四 suite 证据分层与单 checkpoint 覆盖性（2026-09-27）**：π0.5 原论文 [arXiv:2504.16054](https://arxiv.org/abs/2504.16054) 未直接报告 LIBERO 四 suite 分数；openpi 后续 `pi05_libero` 参考为 98.8/98.2/98.0/92.4，LeRobot 后续复现为 97.0/99.0/98.0/96.0，均需与论文分开标注。当时 `$HOME/work/lerobot_pi05_libero_official` 是单一可读 checkpoint，未发现按 suite 独立权重证据；新增四 suite 编排器固定使用同一 checkpoint、NPU0/fp32、每 episode 视频核验。严格 LIBERO 常见 50 trials/task、多 seed 与本地 10 ep/task、seed42 缩减复现不能混称。

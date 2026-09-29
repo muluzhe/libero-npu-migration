@@ -1,0 +1,445 @@
+diff --git a/configs/model/g05.yaml b/configs/model/g05.yaml
+index 044b28a..2fc73f0 100644
+--- a/configs/model/g05.yaml
++++ b/configs/model/g05.yaml
+@@ -80,7 +80,7 @@ model_arch:
+       - 10
+       mrope_interleaved: true
+       partial_rotary_factor: 0.25
+-    linear_attn_backend: fla
++    linear_attn_backend: torch
+     linear_conv_kernel_dim: 4
+     linear_key_head_dim: 128
+     linear_value_head_dim: 128
+@@ -139,7 +139,7 @@ model_arch:
+       - 10
+       mrope_interleaved: true
+       partial_rotary_factor: 0.25
+-    linear_attn_backend: fla
++    linear_attn_backend: torch
+     linear_conv_kernel_dim: 4
+     linear_key_head_dim: 128
+     linear_value_head_dim: 128
+diff --git a/scripts/serve_policy.py b/scripts/serve_policy.py
+index b36b62f..1b8a73b 100644
+--- a/scripts/serve_policy.py
++++ b/scripts/serve_policy.py
+@@ -445,10 +445,11 @@ async def serve(
+     port: int,
+     *,
+     device: str = "cuda",
++    use_bf16: bool = True,
+     action_steps: int = 16,
+ ):
+     """Start the WebSocket server."""
+-    inferencer = PolicyInferencer(policy, processor, device=device)
++    inferencer = PolicyInferencer(policy, processor, device=device, use_bf16=use_bf16)
+     bound_handler = functools.partial(
+         handler_fn,
+         inferencer=inferencer,
+@@ -477,7 +478,14 @@ def main():
+     parser.add_argument("--ckpt_path", required=True, help="Path to checkpoint file")
+     parser.add_argument("--host", default="0.0.0.0")
+     parser.add_argument("--port", type=int, default=8765)
+-    parser.add_argument("--device", default="cuda", help="CUDA device for model inference")
++    parser.add_argument("--device", default="cuda", help="Device for model inference (e.g. cuda, npu:0, cpu)")
++    parser.add_argument(
++        "--no-bf16",
++        dest="bf16",
++        action="store_false",
++        default=True,
++        help="Disable bf16 autocast and run fp32 inference (useful for NPU validation)",
++    )
+     parser.add_argument(
+         "--action_steps",
+         type=int,
+@@ -521,6 +529,7 @@ def main():
+             args.host,
+             args.port,
+             device=args.device,
++            use_bf16=args.bf16,
+             action_steps=args.action_steps,
+         )
+     )
+diff --git a/scripts/serve_policy_batched.py b/scripts/serve_policy_batched.py
+index ca6be34..a71108f 100644
+--- a/scripts/serve_policy_batched.py
++++ b/scripts/serve_policy_batched.py
+@@ -108,8 +108,9 @@ class DynamicBatcher:
+         max_wait_ms: float = 1000.0,
+         max_queue_size: int = 256,
+         device: str = "cuda",
++        use_bf16: bool = True,
+     ):
+-        self.inferencer = PolicyInferencer(policy, processor, device=device)
++        self.inferencer = PolicyInferencer(policy, processor, device=device, use_bf16=use_bf16)
+         self.processor = processor
+         self.max_batch_size = max(1, int(max_batch_size))
+         self.max_wait_s = max(0.0, float(max_wait_ms) / 1000.0)
+@@ -576,6 +577,7 @@ async def serve(
+     port: int,
+     *,
+     device: str = "cuda",
++    use_bf16: bool = True,
+     action_steps: int = 16,
+     max_batch_size: int = 5,
+     max_wait_ms: float = 1000.0,
+@@ -590,6 +592,7 @@ async def serve(
+         max_wait_ms=max_wait_ms,
+         max_queue_size=max_queue_size,
+         device=device,
++        use_bf16=use_bf16,
+     )
+     batcher.start()
+ 
+@@ -637,7 +640,14 @@ def main():
+     )
+     parser.add_argument("--host", default="0.0.0.0")
+     parser.add_argument("--port", type=int, default=8765)
+-    parser.add_argument("--device", default="cuda", help="CUDA device for model inference")
++    parser.add_argument("--device", default="cuda", help="Device for model inference (e.g. cuda, npu:0, cpu)")
++    parser.add_argument(
++        "--no-bf16",
++        dest="bf16",
++        action="store_false",
++        default=True,
++        help="Disable bf16 autocast and run fp32 inference (useful for NPU validation)",
++    )
+     parser.add_argument(
+         "--action_steps",
+         type=int,
+@@ -704,6 +714,7 @@ def main():
+             args.host,
+             args.port,
+             device=args.device,
++            use_bf16=args.bf16,
+             action_steps=args.action_steps,
+             max_batch_size=args.max_batch_size,
+             max_wait_ms=args.max_wait_ms,
+diff --git a/src/g05/models/g05/g05_model_qwen35.py b/src/g05/models/g05/g05_model_qwen35.py
+index 5fc609e..0d13d53 100644
+--- a/src/g05/models/g05/g05_model_qwen35.py
++++ b/src/g05/models/g05/g05_model_qwen35.py
+@@ -226,19 +226,27 @@ class G05ModelQwen35(G05Model):
+             total_k = images.shape[0]
+ 
+             images_temporal = images.unsqueeze(2).expand(-1, -1, temporal_patch_size, -1, -1)
++            # NPU 适配：昇腾 ACL 算子最多支持 8 维张量（AclNN_Parameter_Error EZ1001），
++            # 原 9 维 reshape+permute 链分解为等价低维链（每步 <=8 维）。
++            # 已用随机张量逐位验证与原实现完全一致（K=2/56x56 与 K=4/224x224 均 bitwise equal），
++            # 含原 reshape 的 (C,t)->(t,C) 行主序重切语义：
++            #   out[k*gh*gw + a*gw + e, c*(t*p*p) + ti*(p*p) + b*p + f]
++            #     = I(k, (ti*C+c)//t, a*p + b, e*p + f)
++            mp = merge_size * patch_size
++            gh2 = grid_h // merge_size
++            gw2 = grid_w // merge_size
+             patches_k = (
+-                images_temporal.reshape(
+-                    total_k,
+-                    temporal_patch_size,
+-                    C,
+-                    grid_h // merge_size,
+-                    merge_size,
+-                    patch_size,
+-                    grid_w // merge_size,
+-                    merge_size,
+-                    patch_size,
+-                )
+-                .permute(0, 3, 6, 4, 7, 2, 1, 5, 8)
++                images_temporal
++                .contiguous()  # t 维为 stride-0 expand，先物化（与原 reshape 的隐式拷贝相同）
++                .reshape(total_k, C * temporal_patch_size, H_k, W_k)
++                .reshape(total_k, temporal_patch_size, C, H_k, W_k)  # 复现原 (C,t)->(t,C) 重切
++                .reshape(total_k, temporal_patch_size, C, gh2, mp, gw2, mp)
++                .permute(0, 3, 5, 4, 6, 1, 2)  # [K, gh2, gw2, uH, uW, t, C]
++                .reshape(total_k, gh2, gw2, merge_size, patch_size, mp, temporal_patch_size, C)
++                .permute(0, 1, 2, 3, 5, 6, 7, 4)  # [K, gh2, gw2, a, uW, t, C, b]
++                .reshape(total_k * gh2 * gw2, merge_size, merge_size, patch_size,
++                         temporal_patch_size, C, patch_size)
++                .permute(0, 1, 2, 5, 4, 6, 3)  # [KIJ, a, e, C, t, b, f]
+                 .reshape(total_k * grid_h * grid_w, -1)
+             )
+             grid_thw_k = torch.tensor(
+diff --git a/src/g05/models/g05/g05_policy.py b/src/g05/models/g05/g05_policy.py
+index fe1c2b2..921951e 100644
+--- a/src/g05/models/g05/g05_policy.py
++++ b/src/g05/models/g05/g05_policy.py
+@@ -104,6 +104,10 @@ def _model_log(fh, msg_fn):
+ def _sync_if_cuda_available() -> None:
+     if torch.cuda.is_available():
+         torch.cuda.synchronize()
++    else:
++        npu = getattr(torch, "npu", None)
++        if npu is not None and npu.is_available():
++            npu.synchronize()
+ 
+ 
+ class G05Policy(BasePolicy):
+diff --git a/src/g05/models/g05/inferencer.py b/src/g05/models/g05/inferencer.py
+index 7430ace..ab3459d 100644
+--- a/src/g05/models/g05/inferencer.py
++++ b/src/g05/models/g05/inferencer.py
+@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
+ def _sync_if_cuda_available() -> None:
+     if torch.cuda.is_available():
+         torch.cuda.synchronize()
++    else:
++        npu = getattr(torch, "npu", None)
++        if npu is not None and npu.is_available():
++            npu.synchronize()
+ 
+ 
+ @dataclasses.dataclass(slots=True)
+@@ -49,10 +53,12 @@ def resolve_processor(processor, data):
+ class PolicyInferencer:
+     """Unified inference wrapper: obs_dicts in → action dicts out."""
+ 
+-    def __init__(self, policy, processor, device: str = "cuda"):
++    def __init__(self, policy, processor, device: str = "cuda", use_bf16: bool = True):
+         self.policy = policy
+         self.processor = processor
+         self.device = device
++        # bf16 autocast for cuda/npu; False keeps fp32 (NPU validation mode).
++        self.use_bf16 = use_bf16
+ 
+     # ──────── Public API ────────
+ 
+@@ -105,7 +111,15 @@ class PolicyInferencer:
+     def forward_batch(self, batch: dict) -> dict:
+         """Core: to device → predict_action → to cpu."""
+         batch = dict_apply(batch, lambda x: x.to(self.device) if isinstance(x, torch.Tensor) else x)
+-        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
++        # Device-aware autocast: "cuda" is a silent no-op for NPU tensors, so pick
++        # the autocast device type from self.device (cuda/npu). use_bf16=False
++        # disables autocast entirely for fp32 inference.
++        device_type = torch.device(self.device).type
++        if self.use_bf16 and device_type in ("cuda", "npu"):
++            autocast_ctx = torch.autocast(device_type, dtype=torch.bfloat16)
++        else:
++            autocast_ctx = torch.autocast(device_type, enabled=False)
++        with torch.no_grad(), autocast_ctx:
+             batch = self.policy.predict_action(batch)
+         batch = dict_apply(batch, lambda x: x.cpu() if isinstance(x, torch.Tensor) else x)
+         return batch
+diff --git a/src/g05/models/g05/model/modules.py b/src/g05/models/g05/model/modules.py
+index ded2b95..dbaded8 100644
+--- a/src/g05/models/g05/model/modules.py
++++ b/src/g05/models/g05/model/modules.py
+@@ -20,23 +20,25 @@ class SinusoidalPosEmbPi0(nn.Module):
+         if dim % 2 != 0:
+             raise ValueError(f"dimension ({dim}) must be divisible by 2")
+ 
+-    @torch.autocast("cuda", enabled=False)  # Critical!!!
+     def forward(
+         self,
+         t: torch.FloatTensor,
+     ) -> torch.FloatTensor:
+-        if t.ndim != 1:
+-            raise ValueError("The time tensor is expected to be of shape `(batch_size, )`.")
++        # Device-aware autocast disable: "cuda" is a no-op on NPU/CPU and would
++        # fail to disable an outer npu autocast (fp64 time-embedding contract).
++        with torch.autocast(t.device.type, enabled=False):
++            if t.ndim != 1:
++                raise ValueError("The time tensor is expected to be of shape `(batch_size, )`.")
+ 
+-        # Use float64 for high-precision frequency calculation
+-        dtype = get_safe_dtype(torch.float64, t.device.type)
+-        fraction = torch.linspace(0.0, 1.0, self.dim // 2, dtype=dtype, device=t.device)
+-        period = self.min_period * (self.max_period / self.min_period) ** fraction
+-        scaling_factor = 1.0 / period * 2 * math.pi
+-        sin_input = scaling_factor[None, :] * t[:, None]
+-        emb = torch.cat([torch.sin(sin_input), torch.cos(sin_input)], dim=1)
++            # Use float64 for high-precision frequency calculation
++            dtype = get_safe_dtype(torch.float64, t.device.type)
++            fraction = torch.linspace(0.0, 1.0, self.dim // 2, dtype=dtype, device=t.device)
++            period = self.min_period * (self.max_period / self.min_period) ** fraction
++            scaling_factor = 1.0 / period * 2 * math.pi
++            sin_input = scaling_factor[None, :] * t[:, None]
++            emb = torch.cat([torch.sin(sin_input), torch.cos(sin_input)], dim=1)
+ 
+-        return emb.to(t.dtype)
++            return emb.to(t.dtype)
+ 
+ 
+ def get_safe_dtype(target_dtype, device_type):
+@@ -70,29 +72,31 @@ class AdaptiveRMSNorm(nn.Module):
+         normed_inputs = x * torch.rsqrt(var + self.eps)
+         return normed_inputs
+ 
+-    @torch.autocast("cuda", enabled=False)  # Critical!!!
+     def forward(
+         self, x: torch.FloatTensor, cond: torch.FloatTensor
+     ) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+-        # [Batch, Seq, Dim]
+-        dtype = x.dtype  # original dtype, could be half-precision
+-        normed_inputs = self._norm(x)
+-
+-        # [Batch, Dim_Cond] -> [Batch, 3 * Dim]
+-        # Force fp32: FSDP mp may have bf16 weights but we need fp32 precision here
+-        modulation = torch.nn.functional.linear(
+-            cond.float(),
+-            self.dense.weight.float(),
+-            self.dense.bias.float() if self.dense.bias is not None else None,
+-        )
+-
+-        # Reshape modulation to match x: [Batch, 1, 3 * Dim]
+-        if modulation.ndim == 2:
+-            modulation = modulation.unsqueeze(1)
+-
+-        # Split into scale, shift, gate
+-        scale, shift, gate = torch.chunk(modulation, 3, dim=-1)
+-        # Apply modulation: (1 + scale) * x + shift
+-        normed_inputs = normed_inputs * (1 + scale.to(torch.float32)) + shift.to(torch.float32)
+-
+-        return normed_inputs.to(dtype), gate.to(dtype)
++        # Device-aware autocast disable: "cuda" is a no-op on NPU/CPU and would
++        # fail to disable an outer npu autocast, letting F.linear below run in bf16.
++        with torch.autocast(x.device.type, enabled=False):
++            # [Batch, Seq, Dim]
++            dtype = x.dtype  # original dtype, could be half-precision
++            normed_inputs = self._norm(x)
++
++            # [Batch, Dim_Cond] -> [Batch, 3 * Dim]
++            # Force fp32: FSDP mp may have bf16 weights but we need fp32 precision here
++            modulation = torch.nn.functional.linear(
++                cond.float(),
++                self.dense.weight.float(),
++                self.dense.bias.float() if self.dense.bias is not None else None,
++            )
++
++            # Reshape modulation to match x: [Batch, 1, 3 * Dim]
++            if modulation.ndim == 2:
++                modulation = modulation.unsqueeze(1)
++
++            # Split into scale, shift, gate
++            scale, shift, gate = torch.chunk(modulation, 3, dim=-1)
++            # Apply modulation: (1 + scale) * x + shift
++            normed_inputs = normed_inputs * (1 + scale.to(torch.float32)) + shift.to(torch.float32)
++
++            return normed_inputs.to(dtype), gate.to(dtype)
+diff --git a/src/g05/models/g05/model/utils.py b/src/g05/models/g05/model/utils.py
+index 9a4bdb8..4cbbf9f 100644
+--- a/src/g05/models/g05/model/utils.py
++++ b/src/g05/models/g05/model/utils.py
+@@ -64,13 +64,13 @@ def eager_attention_forward(
+     key_states = repeat_kv(key, module.num_key_value_groups)
+     value_states = repeat_kv(value, module.num_key_value_groups)
+     attn_weights = torch.matmul(query, key_states.transpose(2, 3)) * scaling
+-    with torch.autocast("cuda", enabled=False):
++    with torch.autocast(query.device.type, enabled=False):
+         # Gemma 2 style soft capping: tanh(logits / cap) * cap
+         if softcap is not None:
+             attn_weights = (torch.tanh(attn_weights.float() / softcap) * softcap).to(query.dtype)
+     if attention_mask is not None:
+         attn_weights = attn_weights + attention_mask[:, :, :, : key_states.shape[-2]]
+-    with torch.autocast("cuda", enabled=False):
++    with torch.autocast(query.device.type, enabled=False):
+         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
+             query.dtype
+         )
+diff --git a/src/g05/models/g05/qwen35/gated_deltanet.py b/src/g05/models/g05/qwen35/gated_deltanet.py
+index 116a620..31ea174 100644
+--- a/src/g05/models/g05/qwen35/gated_deltanet.py
++++ b/src/g05/models/g05/qwen35/gated_deltanet.py
+@@ -423,7 +423,7 @@ class Qwen3_5GatedDeltaNet(nn.Module):
+         value = value.reshape(batch_size, seq_len, -1, self.head_v_dim)
+ 
+         beta = b.sigmoid()
+-        with torch.autocast(device_type="cuda", enabled=False):
++        with torch.autocast(device_type=hidden_states.device.type, enabled=False):
+             A = -torch.exp(self.A_log.float())
+             dt = F.softplus(a.float() + self.dt_bias.float())
+             g = A * dt
+@@ -485,7 +485,7 @@ class Qwen3_5GatedDeltaNet(nn.Module):
+         # FusedRMSNormGated (FLA fast path) outputs dtype == input dtype, so pass fp32
+         # explicitly and disable autocast to guarantee fp32 norm regardless of which
+         # implementation (FLA Triton kernel vs. fallback Qwen3_5RMSNormGated) is active.
+-        with torch.autocast("cuda", enabled=False):
++        with torch.autocast(core_attn_out.device.type, enabled=False):
+             core_attn_out = self.norm(core_attn_out.float(), z.float())
+         core_attn_out = core_attn_out.reshape(batch_size, seq_len, -1)
+ 
+diff --git a/src/g05/models/g05/qwen35/mixture_qwen35.py b/src/g05/models/g05/qwen35/mixture_qwen35.py
+index 02fa6f6..264b11e 100644
+--- a/src/g05/models/g05/qwen35/mixture_qwen35.py
++++ b/src/g05/models/g05/qwen35/mixture_qwen35.py
+@@ -227,7 +227,7 @@ class MixtureDecoderLayerQwen35(nn.Module):
+             value_states = value_states.view(bsz, seq_len, num_kv_heads, head_dim).transpose(1, 2)
+ 
+             # Apply partial RoPE in fp32 to match the reference joint-model precision.
+-            with torch.autocast("cuda", enabled=False):
++            with torch.autocast(query_states.device.type, enabled=False):
+                 orig_qk_dtype = query_states.dtype
+                 q_fp32 = query_states.float()
+                 k_fp32 = key_states.float()
+@@ -578,7 +578,7 @@ class MixtureQwen35(nn.Module):
+         # NB: torch.zeros(()) (a fill kernel), not torch.tensor(0.0) (a sync H2D copy
+         # that is illegal inside CUDA-graph capture — FlashRT commit/FM graphs).
+         _dtype_ref = torch.zeros((), device=hidden_states.device)
+-        with torch.autocast("cuda", enabled=False):
++        with torch.autocast(hidden_states.device.type, enabled=False):
+             cos, sin = self.layers[full_attn_layer_idx].self_attn.rotary_emb(
+                 _dtype_ref, position_ids
+             )
+diff --git a/src/g05/models/g05/qwen35/modules.py b/src/g05/models/g05/qwen35/modules.py
+index 15950ca..036b116 100644
+--- a/src/g05/models/g05/qwen35/modules.py
++++ b/src/g05/models/g05/qwen35/modules.py
+@@ -141,11 +141,13 @@ class Qwen3_5RMSNorm(nn.Module):
+     def _norm(self, x):
+         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+ 
+-    @torch.autocast("cuda", enabled=False)
+     def forward(self, x):
+-        output = self._norm(x.float())
+-        output = output * (1.0 + self.weight.float())
+-        return output.type_as(x)
++        # Device-aware autocast disable: "cuda" is a no-op on NPU/CPU, which would
++        # fail to disable an outer npu autocast and break the fp32 norm contract.
++        with torch.autocast(x.device.type, enabled=False):
++            output = self._norm(x.float())
++            output = output * (1.0 + self.weight.float())
++            return output.type_as(x)
+ 
+     def extra_repr(self):
+         return f"{tuple(self.weight.shape)}, eps={self.eps}"
+@@ -164,12 +166,13 @@ class Qwen3_5RMSNormGated(nn.Module):
+         self.weight = nn.Parameter(torch.ones(hidden_size))
+         self.variance_epsilon = eps
+ 
+-    @torch.autocast("cuda", enabled=False)
+     def forward(self, hidden_states, gate=None):
+-        input_dtype = hidden_states.dtype
+-        hidden_states = hidden_states.to(torch.float32)
+-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+-        hidden_states = self.weight * hidden_states.to(input_dtype)
+-        hidden_states = hidden_states * F.silu(gate.to(torch.float32))
+-        return hidden_states.to(input_dtype)
++        # Device-aware autocast disable (see Qwen3_5RMSNorm.forward note).
++        with torch.autocast(hidden_states.device.type, enabled=False):
++            input_dtype = hidden_states.dtype
++            hidden_states = hidden_states.to(torch.float32)
++            variance = hidden_states.pow(2).mean(-1, keepdim=True)
++            hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
++            hidden_states = self.weight * hidden_states.to(input_dtype)
++            hidden_states = hidden_states * F.silu(gate.to(torch.float32))
++            return hidden_states.to(input_dtype)
+diff --git a/src/g05/utils/checkpoint/checkpoint_utils.py b/src/g05/utils/checkpoint/checkpoint_utils.py
+index 652ec36..7aecbc5 100644
+--- a/src/g05/utils/checkpoint/checkpoint_utils.py
++++ b/src/g05/utils/checkpoint/checkpoint_utils.py
+@@ -486,7 +486,12 @@ def load_state_dict_safely(
+ 
+     # 5. Manual cleanup.
+     del update_dict
+-    torch.cuda.empty_cache()
++    if torch.cuda.is_available():
++        torch.cuda.empty_cache()
++    else:
++        npu = getattr(torch, "npu", None)
++        if npu is not None and npu.is_available():
++            npu.empty_cache()
+ 
+     # 6. Logging — structured box
+     manually_handled = {k for k, _, _ in mismatched_keys}

@@ -11,7 +11,7 @@
 #   bash run_openvla_full_validation.sh 1 8021 libero_object libero_10
 #
 # 环境变量:
-#   EPISODES      每 task episode 数（默认 10；官方论文 50）
+#   EPISODES      每 task episode 数（默认统一协议 50；可显式缩减并在结果中标注）
 #   VIDEO_DIR     视频输出根目录（默认 $PROJECT_ROOT/results/openvla_full/videos/<suite>）
 #   OPENVLA_ROOT  openvla 仓库路径（默认 ~/work/openvla，server 需其 prismatic 模块）
 #   OPENVLA_CKPTS checkpoint 根目录（默认 ~/work/openvla_checkpoints，子目录 libero-spatial 等）
@@ -26,13 +26,17 @@ shift 2
 SUITES=("$@")
 [ ${#SUITES[@]} -ge 1 ] || { echo "至少需要一个 suite 参数"; exit 1; }
 
-EPISODES=${EPISODES:-10}
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# 统一评测默认参数（seed 42、trials/task 50 官方全量、官方固定 horizon、强制视频）
+# 详见 scripts/eval_defaults.sh 与 docs/EVAL_PROTOCOL.md；缩减验证用 EPISODES=10 且结果须标注协议
+source "$SCRIPT_DIR/../eval_defaults.sh"
+EPISODES=${EPISODES:-$LIBERO_TRIALS_PER_TASK}
+SEED=${SEED:-$LIBERO_SEED}
 VIDEO_DIR=${VIDEO_DIR:-}
 RESUME=${RESUME:-1}   # 1=断点续跑（跳过已完成的 task，seeding 与顺序无关故统计等价）；0=强制从头
 RESUME_FLAG=""
 [ "$RESUME" = "1" ] && RESUME_FLAG="--resume"
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OPENVLA_ROOT=${OPENVLA_ROOT:-$HOME/work/openvla}
 OPENVLA_CKPTS=${OPENVLA_CKPTS:-$HOME/work/openvla_checkpoints}
 X_VLA_ROOT=${X_VLA_ROOT:-$HOME/work/X-VLA}
@@ -51,7 +55,7 @@ export LD_LIBRARY_PATH=$HOME/render_libs:/usr/lib64:${LD_LIBRARY_PATH:-}
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 
 echo "=== OpenVLA NPU 全量验证编排 ==="
-echo "device=$DEVICE_ID port=$PORT episodes=$EPISODES suites=${SUITES[*]}"
+echo "device=$DEVICE_ID port=$PORT episodes=$EPISODES seed=$SEED suites=${SUITES[*]}"
 
 for SUITE in "${SUITES[@]}"; do
   # libero_spatial -> libero-spatial（checkpoint 子目录命名：下划线换连字符）
@@ -106,7 +110,7 @@ for SUITE in "${SUITES[@]}"; do
   [ -n "$VIDEO_DIR" ] && VIDEO_ARGS+=(--video_dir "$VIDEO_DIR/$SUITE")
   X_VLA_ROOT=$X_VLA_ROOT PROJECT_ROOT=$PROJECT_ROOT \
     $PY "$PROJECT_ROOT/scripts/openvla/eval_openvla_suite.py" \
-      --suite $SUITE --episodes $EPISODES --port $PORT $RESUME_FLAG "${VIDEO_ARGS[@]}"
+      --suite $SUITE --episodes $EPISODES --seed $SEED --port $PORT $RESUME_FLAG "${VIDEO_ARGS[@]}"
   EVAL_RC=$?
   echo "[$SUITE] eval 退出码=$EVAL_RC"
 
